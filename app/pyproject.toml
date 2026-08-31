@@ -1,0 +1,24 @@
+[project]
+name = "bifrost"
+version = "0.0.0" # placeholder; release version stamped from the git tag in CI
+description = "Danish address resolution belief engine"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi>=0.138",
+    "uvicorn[standard]>=0.49",
+    "asyncpg>=0.31",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.14",
+    "numpy>=2.5",          # segmenter decode (viterbi); on the serving path (model-only decomposer)
+    # 1.29 segfaults importing its pybind ext under the distroless runtime interpreter
+    "onnxruntime>=1.28,<1.29",  # segmenter inference; the sole decomposer runs in-process
+    "redis>=8",          # response cache over dragonfly (redis.asyncio); pure-python, distroless-safe
+    "prometheus-client>=0.21",  # /metrics histogram; multiprocess collector across uvicorn workers
+]
+
+[build-system]
+requires = ["hatchling>=1.30"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bifrost"]

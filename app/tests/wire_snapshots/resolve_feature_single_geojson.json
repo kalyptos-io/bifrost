@@ -1,0 +1,1 @@
+{"query":"","matches":[{"kind":"kommune","result":"København","lifecycle":"current","components":{"kommune":"København"},"postcodes":null,"geometry":{"srid":25832,"geojson":{"type":"Polygon","coordinates":[[[722.1,6177.2],[723.0,6177.0],[722.1,6177.2]]]},"vejpunkt":null},"meta":{"score":1.0,"confidence":"A","uuid":null}}]}

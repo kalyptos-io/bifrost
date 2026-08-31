@@ -1,0 +1,55 @@
+{
+  "eps": 0.001,
+  "weights": {
+    "street": 2.4283,
+    "house_number": 0.0384,
+    "house_letter": 0.1075,
+    "floor": 2.2611,
+    "door": 1.284,
+    "postcode": 3.556,
+    "city": 1.7858,
+    "sub_locality": 0.1593
+  },
+  "margins": {
+    "a": 12.1135,
+    "b": 0.5396
+  },
+  "provenance": {
+    "git_sha": "ad58aaed628d5543693913335540987be5fdf619",
+    "git_dirty": true,
+    "generated_at": "2026-08-27T18:54:37Z",
+    "python": "3.13.12",
+    "command": "train/eval/calibrate.py --snapshot /tmp/bifrost-score-snapshot.jsonl --out ../app/src/bifrost/db/artifacts/score_params.json",
+    "inputs": {
+      "snapshot": {
+        "path": "bifrost-score-snapshot.jsonl",
+        "sha256": "d2ece1b77f81f9adabb4f756654df4055e86130c32842611eb4b3b3c6eca5c6c"
+      }
+    },
+    "source": "synthetic fellegi-sunter calibration",
+    "weights": "fitted",
+    "alpha": 1.0,
+    "thresholds": {
+      "trigram": 0.5,
+      "husnr_fuzzy": 0.99,
+      "postcode_fuzzy": 0.99
+    },
+    "margins_fit": true,
+    "snapshot_run": {
+      "git_sha": "6da32bfb3a485ff327f04e0563a755a5125f6937",
+      "git_dirty": true,
+      "generated_at": "2026-08-27T15:57:43Z",
+      "python": "3.13.12",
+      "command": "train/eval/snapshot.py --synth data/synth/hard.jsonl --out /tmp/bifrost-score-snapshot.jsonl --limit 2500 --sample-seed 1",
+      "inputs": {
+        "synth": {
+          "path": "train/data/synth/hard.jsonl",
+          "sha256": "fa466cd1b946b4257e7db1b7c7efd15a668ac6fe6ff1940a25e4d576e214af2b"
+        }
+      },
+      "generation": "gen_20260721235651506280",
+      "records": 2500,
+      "sample_seed": 1
+    }
+  }
+}

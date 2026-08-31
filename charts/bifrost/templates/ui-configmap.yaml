@@ -1,0 +1,12 @@
+{{- if .Values.ui.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "bifrost.ui.fullname" . }}
+  labels:
+    {{- include "bifrost.ui.labels" . | nindent 4 }}
+data:
+  # "" -> relative same-origin (ui behind the same ingress host as the api)
+  env.js: |
+    window.__BIFROST_API__ = {{ .Values.ui.apiBase | quote }};
+{{- end }}

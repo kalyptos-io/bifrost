@@ -1,0 +1,23 @@
+{{- if .Values.app.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "bifrost.fullname" . }}
+  labels:
+    {{- include "bifrost.labels" . | nindent 4 }}
+data:
+  BIFROST_DB_POOL_MIN: {{ .Values.dbPool.min | quote }}
+  BIFROST_DB_POOL_MAX: {{ .Values.dbPool.max | quote }}
+  BIFROST_DB_MAX_CONNECTIONS: {{ .Values.dbPool.maxConnections | quote }}
+  BIFROST_DB_RESERVED: {{ .Values.dbPool.reserved | quote }}
+  BIFROST_CACHE_TTL: {{ .Values.cache.ttl | quote }}
+  {{- with .Values.logLevel }}
+  BIFROST_LOG_LEVEL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.corsOrigins }}
+  BIFROST_CORS_ORIGINS: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.cache.url }}
+  BIFROST_CACHE_URL: {{ . | quote }}
+  {{- end }}
+{{- end }}

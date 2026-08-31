@@ -1,0 +1,18 @@
+{{- if .Values.sync.enabled }}
+# plain PVC (sync unit, no helm hooks). holds the resumable datafordeler download state + the dlt pipeline dir
+# (DLT_DATA_DIR) across worker restarts so it resumes rather than re-fetching.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "bifrost.fullname" . }}-sync-work
+  labels:
+    {{- include "bifrost.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.sync.storage.className }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.sync.storage.size }}
+{{- end }}

@@ -1,0 +1,406 @@
+/* starlight token bridge */
+:root {
+	--sl-color-white: var(--ink-950);
+	--sl-color-gray-1: var(--ink-900);
+	--sl-color-gray-2: var(--graphite-600);
+	--sl-color-gray-3: var(--graphite-400);
+	--sl-color-gray-4: var(--graphite-300);
+	--sl-color-gray-5: var(--bone-400);
+	--sl-color-gray-6: var(--bone-300);
+	--sl-color-gray-7: var(--bone-200);
+	--sl-color-black: var(--bone-100);
+
+	--sl-color-bg: var(--bone-100);
+	--sl-color-bg-nav: var(--bone-100);
+	--sl-color-bg-sidebar: var(--bone-100);
+	--sl-color-bg-inline-code: var(--bone-200);
+
+	--sl-color-hairline: var(--line-hairline);
+	--sl-color-hairline-light: var(--line-quiet);
+	--sl-color-hairline-shade: var(--line-quiet);
+
+	--sl-color-accent-low: var(--bone-300);
+	--sl-color-accent: var(--pine-500);
+	--sl-color-accent-high: var(--pine-600);
+	--sl-color-text-accent: var(--pine-500);
+	--sl-color-text: var(--ink-900);
+
+	--sl-font: var(--font-text);
+	--sl-font-mono: var(--font-mono);
+	--sl-text-h1: var(--size-title-1);
+	--sl-text-h2: var(--size-title-2);
+	--sl-text-h3: var(--size-title-3);
+	--sl-text-h4: var(--size-body-lg);
+	--sl-text-h5: var(--size-body);
+	--sl-content-width: 47rem;
+	--sl-sidebar-width: 16rem;
+	--sl-nav-height: 3.75rem;
+
+	--i-chevron-right: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.75%27%20stroke-linecap%3D%27butt%27%20stroke-linejoin%3D%27miter%27%3E%3Cpath%20d%3D%27m9%2018%206-6-6-6%27%2F%3E%3C%2Fsvg%3E");
+	--i-chevron-down: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.75%27%20stroke-linecap%3D%27butt%27%20stroke-linejoin%3D%27miter%27%3E%3Cpath%20d%3D%27m6%209%206%206%206-6%27%2F%3E%3C%2Fsvg%3E");
+	--i-search: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.75%27%20stroke-linecap%3D%27butt%27%20stroke-linejoin%3D%27miter%27%3E%3Ccircle%20cx%3D%2711%27%20cy%3D%2711%27%20r%3D%278%27%2F%3E%3Cpath%20d%3D%27m21%2021-4.3-4.3%27%2F%3E%3C%2Fsvg%3E");
+	--i-copy: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.75%27%20stroke-linecap%3D%27butt%27%20stroke-linejoin%3D%27miter%27%3E%3Crect%20x%3D%278%27%20y%3D%278%27%20width%3D%2714%27%20height%3D%2714%27%2F%3E%3Cpath%20d%3D%27M4%2016c-1.1%200-2-.9-2-2V4c0-1.1.9-2%202-2h10c1.1%200%202%20.9%202%202%27%2F%3E%3C%2Fsvg%3E");
+
+	--pagefind-ui-border-radius: 0;
+	--sl-search-corners: 0;
+	--pagefind-ui-font: var(--font-text);
+	--pagefind-ui-primary: var(--pine-500);
+	--pagefind-ui-text: var(--ink-900);
+	--pagefind-ui-background: var(--bone-100);
+	--pagefind-ui-border: var(--line-hairline);
+}
+
+:root[data-theme='dark'] {
+	--sl-color-white: var(--bone-050);
+	--sl-color-gray-1: var(--bone-100);
+	--sl-color-gray-2: var(--graphite-200);
+	--sl-color-gray-3: var(--graphite-400);
+	--sl-color-gray-4: var(--graphite-500);
+	--sl-color-gray-5: var(--graphite-600);
+	--sl-color-gray-6: var(--ink-800);
+	--sl-color-gray-7: var(--ink-800);
+	--sl-color-black: var(--ink-950);
+
+	--sl-color-bg: var(--ink-950);
+	--sl-color-bg-nav: var(--ink-950);
+	--sl-color-bg-sidebar: var(--ink-950);
+	--sl-color-bg-inline-code: var(--ink-800);
+
+	--sl-color-hairline: var(--line-hairline);
+	--sl-color-hairline-light: var(--line-quiet);
+	--sl-color-hairline-shade: var(--line-hairline);
+
+	/* pine-500 is 3.3:1 on void, so the accent steps up a stop rather than de-colouring */
+	--sl-color-accent-low: var(--ink-800);
+	--sl-color-accent: var(--pine-300);
+	--sl-color-accent-high: var(--bone-100);
+	--sl-color-text-accent: var(--pine-300);
+	--sl-color-text: var(--bone-100);
+
+	--text-primary: var(--bone-100);
+	--text-secondary: var(--graphite-300);
+	--text-tertiary: var(--graphite-400);
+	--text-accent: var(--pine-300);
+	--line-hairline: rgba(246, 242, 234, 0.13);
+	--line-quiet: rgba(246, 242, 234, 0.08);
+	--line-strong: rgba(246, 242, 234, 0.28);
+	--line-accent: var(--pine-300);
+	--border-hairline: 1px solid var(--line-hairline);
+	--border-quiet: 1px solid var(--line-quiet);
+	--pattern-dash: var(--pattern-dash-inverse);
+	--shadow-focus: 0 0 0 1px var(--ink-950), 0 0 0 2px var(--pine-300);
+
+	--pagefind-ui-primary: var(--pine-300);
+	--pagefind-ui-text: var(--bone-100);
+	--pagefind-ui-background: var(--ink-950);
+	--pagefind-ui-border: var(--line-inverse);
+}
+
+body {
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+/* type */
+.site-title {
+	font-family: var(--font-sans);
+	font-weight: var(--weight-semibold);
+	font-size: 12px;
+	letter-spacing: 0.3em;
+	text-transform: uppercase;
+	gap: 0;
+}
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6),
+.content-panel h1,
+.right-sidebar-panel > .heading {
+	font-family: var(--font-sans);
+	font-weight: var(--weight-medium);
+	letter-spacing: var(--tracking-title-2);
+}
+.sl-markdown-content :is(h1, h2) {
+	letter-spacing: var(--tracking-title-1);
+}
+.sl-markdown-content h2 {
+	padding-top: var(--space-3);
+	border-top: var(--border-hairline);
+}
+.content-panel h1 {
+	line-height: var(--lh-title-1);
+}
+.sl-markdown-content p,
+.sl-markdown-content li {
+	text-wrap: pretty;
+}
+.content-panel .sl-markdown-content > p:first-of-type {
+	max-width: var(--measure-narrow);
+	font-size: var(--size-body-sm);
+	line-height: var(--lh-body-sm);
+	color: var(--text-secondary);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+	color: inherit;
+	text-decoration: none;
+	border-bottom: 1px solid var(--line-strong);
+	transition: var(--transition-control);
+}
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+	color: var(--text-accent);
+	border-bottom-color: var(--line-accent);
+}
+
+/* navigation */
+.sidebar-content .group-label > span,
+.right-sidebar-panel > .heading {
+	font-family: var(--font-mono);
+	font-weight: 400;
+	font-size: var(--size-mono-sm);
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	color: var(--text-tertiary);
+}
+.sidebar-content ul li a,
+.right-sidebar-panel a {
+	font-family: var(--font-mono);
+	font-size: var(--size-mono-sm);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	border-bottom: var(--border-quiet);
+	transition: var(--transition-control);
+}
+.sidebar-content ul li a[aria-current='page'] {
+	background: none;
+	color: var(--sl-color-text-accent);
+	font-weight: 400;
+}
+.sidebar-content ul li a:hover {
+	color: var(--sl-color-text-accent);
+}
+.sidebar-content ul.top-level > li + li {
+	margin-top: var(--space-4);
+}
+
+/* scoped components set radius literals outside shared tokens */
+:root
+	:is(
+		a,
+		button,
+		kbd,
+		dialog,
+		input,
+		select,
+		pre,
+		mark,
+		ins,
+		del,
+		.toggle,
+		.sl-badge,
+		.sl-link-button,
+		.starlight-aside
+	) {
+	border-radius: 0;
+}
+:root [data-open-modal],
+:root .expressive-code .copy :is(button, .feedback) {
+	border-radius: 0;
+}
+
+.starlight-aside {
+	border-inline-start-width: 2px;
+	background: var(--sl-color-bg-inline-code);
+	padding: var(--space-3);
+}
+.starlight-aside__title {
+	font-family: var(--font-mono);
+	font-size: var(--size-mono-sm);
+	font-weight: 400;
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+}
+.starlight-aside--caution {
+	--sl-color-asides-text-accent: var(--sl-color-text-accent);
+	--sl-color-asides-border: var(--line-accent);
+}
+
+/* tables */
+.sl-markdown-content table {
+	border-collapse: collapse;
+	width: 100%;
+}
+.sl-markdown-content th {
+	font-family: var(--font-mono);
+	font-weight: 400;
+	font-size: var(--size-mono-sm);
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	color: var(--text-tertiary);
+	border-bottom: 1px solid var(--line-strong);
+	padding-bottom: var(--space-1);
+}
+.sl-markdown-content td {
+	border-bottom: var(--border-quiet);
+	padding: var(--space-15) var(--space-2) var(--space-15) 0;
+	font-size: var(--size-body-sm);
+	line-height: var(--lh-body-sm);
+	vertical-align: top;
+}
+.sl-markdown-content :is(th, td):last-child {
+	padding-right: 0;
+}
+
+.content-panel + .content-panel {
+	border-top: var(--border-hairline);
+}
+header.header,
+.sidebar-pane {
+	border-color: var(--line-hairline);
+}
+a:focus-visible,
+button:focus-visible {
+	outline: none;
+	box-shadow: var(--shadow-focus);
+}
+
+/* icons */
+.sidebar-content summary .caret,
+starlight-theme-select .caret,
+site-search button[data-open-modal] > svg {
+	width: 14px;
+	height: 14px;
+	background: currentColor;
+	-webkit-mask: var(--i) center / contain no-repeat;
+	mask: var(--i) center / contain no-repeat;
+}
+.sidebar-content summary .caret path,
+starlight-theme-select .caret path,
+site-search button[data-open-modal] > svg path {
+	fill: transparent;
+}
+.sidebar-content summary .caret {
+	--i: var(--i-chevron-right);
+	color: var(--text-tertiary);
+}
+starlight-theme-select .caret {
+	--i: var(--i-chevron-down);
+}
+site-search button[data-open-modal] > svg {
+	--i: var(--i-search);
+}
+starlight-theme-select .label-icon {
+	display: none;
+}
+
+/* header */
+header.header .sl-flex.print\:hidden {
+	align-items: center;
+	gap: 0;
+}
+site-search {
+	display: flex;
+	align-items: center;
+	padding-inline-end: var(--space-4);
+}
+site-search button[data-open-modal] {
+	align-items: center;
+	gap: var(--space-1);
+	height: 30px;
+	padding: 0 var(--space-15);
+	border: var(--border-hairline);
+	background: none;
+	font-family: var(--font-mono);
+	font-size: var(--size-mono-sm);
+	letter-spacing: 0.14em;
+	line-height: 1;
+	text-transform: uppercase;
+	color: var(--text-tertiary);
+}
+site-search button[data-open-modal]:hover {
+	color: var(--text-accent);
+	border-color: var(--line-accent);
+}
+site-search button[data-open-modal] > span {
+	line-height: 1;
+	padding-top: 1px;
+}
+site-search button[data-open-modal] kbd {
+	font-family: var(--font-mono);
+	font-size: var(--size-mono-xs);
+	background: none;
+	color: var(--text-tertiary);
+}
+/* an empty social-icons box still draws starlight's 2rem divider stub, and still
+   costs the right group's 1rem gap; the divider below replaces it */
+header .social-icons:empty {
+	display: none;
+}
+starlight-theme-select {
+	position: relative;
+	display: flex;
+	align-items: center;
+	padding-inline-start: var(--space-4);
+}
+/* the header row centres its items, so a border on the box itself can never reach
+   the navbar's padding edges; a pseudo-element can */
+starlight-theme-select::before {
+	content: '';
+	position: absolute;
+	inset-block: calc(var(--sl-nav-pad-y) * -1);
+	inset-inline-start: 0;
+	width: 1px;
+	background: var(--sl-color-hairline);
+}
+starlight-theme-select label {
+	/* the pictogram is hidden, so hand its reserved inline padding back to the text */
+	--sl-label-icon-size: 0rem;
+	--sl-caret-size: 0.875rem;
+	--sl-select-width: 5em;
+	align-items: center;
+	gap: var(--space-1);
+	color: var(--text-tertiary);
+	font-family: var(--font-mono);
+	font-size: var(--size-mono-sm);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+starlight-theme-select select {
+	font: inherit;
+	letter-spacing: inherit;
+	text-transform: inherit;
+	color: inherit;
+}
+
+/* sidebar */
+.sidebar-content ul {
+	--sl-sidebar-item-padding-inline: 0px;
+}
+.sidebar-content ul ul li {
+	margin-inline-start: 0;
+	padding-inline-start: 0;
+	border-inline-start-color: var(--line-hairline);
+}
+.sidebar-content ul ul li a {
+	padding-inline: 12px 0;
+}
+.sidebar-content summary {
+	padding-inline: 0;
+}
+
+/* code */
+.expressive-code {
+	--ec-frm-copyIcon: var(--i-copy);
+}
+.expressive-code .copy button {
+	width: 2rem;
+	height: 2rem;
+}
+.expressive-code .copy button::after {
+	margin: 0.45rem;
+}
+.expressive-code .copy .feedback {
+	padding: 0.2rem 0.6rem;
+	font-family: var(--font-mono);
+	font-size: var(--size-mono-sm);
+	letter-spacing: 0.14em;
+	line-height: 1.5;
+	text-transform: uppercase;
+}

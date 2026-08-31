@@ -1,0 +1,204 @@
+---
+title: Resolve
+description: POST /resolve - free text or pinned components, projections, lifecycle and batch mode.
+---
+
+`POST /resolve` takes address input and returns ranked matches, five of them by default. The input
+can be free text, pre-split components, or both.
+
+## Free text
+
+```json
+{ "query": "Rådhuspladsen 1, 1550 København V" }
+```
+
+The input does not have to be clean. Misspellings, missing postcodes, a wrong city, URL-encoded
+characters and reordered parts all resolve. Free text is truncated at 256 characters before
+parsing.
+
+`matches` comes back empty when nothing plausible is found: `{"query": "zzz", "matches": []}`. A
+non-empty result is not a guarantee either, since input that only looks address-shaped fills the
+same five slots with low-scoring matches. Check `meta.score` and `meta.confidence` before you trust
+a match.
+
+## Pinned components
+
+To skip the parser, state the parts yourself:
+
+```json
+{
+	"components": {
+		"street": "Rådhuspladsen",
+		"house_number": "1",
+		"postcode": "1550"
+	}
+}
+```
+
+The address component set is fixed: `street`, `house_number`, `house_letter`, `floor`, `door`,
+`postcode`, `city`, `sub_locality`. Unknown keys are ignored rather than rejected. The area keys
+`kommune`, `sogn` and `region` are the exception: pinning one of those on its own is not an address
+at all, so the request is answered from the area registers and comes back with `"kind": "kommune"`.
+
+A components-only request echoes `"query": ""`, because there was no raw input.
+
+## Mixing text and components
+
+Send both when part of your input is trustworthy and the rest is not. At least one of the two is
+required.
+
+```json
+{
+	"query": "nøddebogade 1, st th, kbh n",
+	"components": { "postcode": "2200", "city": "København N" }
+}
+```
+
+The street, house number, floor and door are read from the text. The postcode and city come from
+your pins instead, so the mangled `kbh n` is never used. Pins are cleaned up the same way free text
+is, so casing, spacing and accents do not matter.
+
+Use this for a form where some fields are reliable and the address line is not. Pin what the user
+picked from a dropdown, and let the rest be parsed.
+
+## Projections
+
+`project` asks for something the address belongs to instead of the address itself: the road it sits
+on, its postcode area, the property, the municipality. The default is `"address"`.
+
+| `project` | Returns |
+| --- | --- |
+| `address` | The address itself (default). `kind: "address"`, a point geometry. |
+| `auto` | The deepest layer the input supports. A bare street name comes back as `kind: "street"` instead of being completed to addresses. |
+| `street` | The road, with its `postcodes` set and a `MultiLineString`. |
+| `postcode` | The postnummer, with `components` carrying `postcode` and `city`, and a polygon. |
+| `city` | The postdistrikt, the union of its postnummer polygons. |
+| `ejendom` | The property card or cards at that point. See [the ejendom block](./results/#ejendom). |
+| `kommune` | Municipality. |
+| `sogn` | Parish. |
+| `region` | Region. |
+| `retskreds` | Court district. |
+| `politikreds` | Police district. |
+| `opstillingskreds` | Nomination district. |
+
+`address` and `auto` differ only when the input does not name one specific address. A house number
+always does. Without one, `address` fills in the rest and gives you addresses, so a bare street
+name returns the addresses on that street, where `auto` returns the street. If you pin only a
+kommune, sogn or region there is no address to fill in, and both return the area.
+
+```json
+{ "query": "Rådhuspladsen 1, 1550 København V", "project": "kommune" }
+```
+
+```json
+{
+  "query": "Rådhuspladsen 1, 1550 København V",
+  "matches": [
+    {
+      "kind": "kommune",
+      "result": "København",
+      "lifecycle": "current",
+      "components": { "kommune": "København" },
+      "postcodes": null,
+      "geometry": null,
+      "meta": { "score": 1.0, "confidence": "A", "uuid": null }
+    }
+  ]
+}
+```
+
+## Lifecycle
+
+`lifecycle` is the set of designation states you accept, and it defaults to `["current"]`. Widen it
+to reach addresses that are no longer in use:
+
+```json
+{ "query": "Rådhuspladsen 1", "lifecycle": ["current", "retired"] }
+```
+
+Valid values are `current`, `preliminary`, `retired` and `abandoned`, ranked in that order. The rank
+also breaks ties between otherwise equal matches. The list must be non-empty and free of
+duplicates; anything else returns a `422`. Only the states you list can come back, so `["retired"]`
+returns retired addresses and nothing else.
+
+## Response options
+
+`geometry` (default `true`) attaches the `geometry` block. Turn it off when you only need the
+components. It is the largest part of the payload, and on a feature projection it dominates it.
+
+`uuid` (default `false`) adds the DAR identifier to `meta.uuid`, which is `null` otherwise.
+
+`limit` is `1..20` and defaults to `5`. Anything outside that range returns a `422`. The ceiling is
+lower than [`/search`](./search/#limit-and-lifecycle)'s `100` because here the number also sets how
+wide the engine ranks, not just how much it returns.
+
+```json
+{ "query": "Rådhuspladsen 1, 1550 København V", "geometry": false, "uuid": true, "limit": 3 }
+```
+
+Narrowing `limit` never changes the matches you do get. Confidence is always measured against the
+top two candidates, so the leader carries the same `meta.confidence` at `limit: 1` as at the
+default.
+
+## Batch mode
+
+Pass an array as `query`. The response is a JSON array in the same order.
+
+Entries are either plain strings or objects with `input`, `components`, `project`, `lifecycle` and
+`limit`. A batch takes that configuration per item only: setting `components`, `project`,
+`lifecycle` or `limit` at the top level returns a `422`. `geometry` and `uuid` stay at the top
+level, because they apply to the whole response.
+
+A batch may carry `geometry` only for address points. If any item projects onto a feature layer -
+any target other than `address`, `auto` included - `geometry` must be `false`, because a feature
+carries a polygon rather than a point. The `422` names the projections that forced it.
+
+```json
+{
+	"query": [
+		{ "input": "Rådhuspladsen 1, 1550 København V", "project": "kommune" },
+		{ "input": "Nørrebrogade 1, 2200" }
+	],
+	"geometry": false
+}
+```
+
+```json
+[
+  {
+    "query": "Rådhuspladsen 1, 1550 København V",
+    "matches": [ { "kind": "kommune", "result": "København", "…": "…" } ]
+  },
+  {
+    "query": "Nørrebrogade 1, 2200",
+    "matches": [ { "kind": "address", "result": "Nørrebrogade 1, 2200 København N", "…": "…" } ]
+  }
+]
+```
+
+A batch is capped at 1000 items, and items fail independently. See
+[Errors and limits](./errors/#batch-failures).
+
+## Request fields
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `query` | string \| array | - | Free text, or an array for batch. Required unless `components` is given. |
+| `components` | object | `null` | Pinned address parts. Single-query only. |
+| `project` | string | `"address"` | One of the twelve targets above. Single-query only. |
+| `lifecycle` | array | `["current"]` | Non-empty, unique. Single-query only. |
+| `geometry` | boolean | `true` | Attach the geometry block. Batch: address projections only. |
+| `uuid` | boolean | `false` | Attach `meta.uuid`. |
+| `limit` | integer | `5` | `1..20`. Single-query only. |
+
+Unknown fields return a `422`. Nothing is silently ignored at the request level.
+
+### Batch item fields
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `input` | string | `null` | Free text. Required unless `components` is given. |
+| `components` | object | `null` | As above. |
+| `project` | string | `"address"` | As above. |
+| `lifecycle` | array | `["current"]` | As above. |
+| `limit` | integer | `5` | `1..20`. |

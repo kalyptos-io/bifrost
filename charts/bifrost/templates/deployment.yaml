@@ -1,0 +1,144 @@
+{{- if .Values.app.enabled }}
+{{/* cluster-wide connection budget: app boot only sees its own pod; maxReplicas is known only here. */}}
+{{- $surge := 1 }}
+{{- $workers := include "bifrost.workers" . | int }}
+{{/* peak = rollout surge pods, each worker holding a draining old-generation pool (~min) next to the new one */}}
+{{- $peak := mul (add (int (include "bifrost.maxReplicas" .)) $surge) (int $workers) (add (int .Values.dbPool.max) (int .Values.dbPool.min)) }}
+{{- $budget := sub (int .Values.dbPool.maxConnections) (int .Values.dbPool.reserved) }}
+{{- if gt $peak $budget }}
+{{- fail (printf "connection budget: (maxReplicas+maxSurge)*workers*(dbPool.max+dbPool.min)=%d exceeds dbPool.maxConnections-dbPool.reserved=%d; front postgres with pgbouncer rather than widening the pool" $peak $budget) }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bifrost.fullname" . }}
+  labels:
+    {{- include "bifrost.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  # maxUnavailable 0: hold full capacity through a shape-bump roll (new pods serve the prior generation)
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ $surge }} # explicit: the k8s default (25%) would outrun the connection budget above
+  selector:
+    matchLabels:
+      {{- include "bifrost.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bifrost.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.database.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "bifrost.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bifrost
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: BIFROST_DATABASE_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bifrost.secretName" . }}
+                  key: {{ .Values.database.existingSecretKey }}
+            {{- with .Values.database.host }}
+            - name: BIFROST_DATABASE_HOST
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BIFROST_WORKERS
+              value: {{ include "bifrost.workers" . | quote }}
+            - name: BIFROST_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: PROMETHEUS_MULTIPROC_DIR
+              value: /run/prometheus
+          envFrom:
+            - configMapRef:
+                name: {{ include "bifrost.fullname" . }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30 # ~150s for model load + pool warmup
+          readinessProbe:
+            httpGet:
+              path: /ready  # 503 until the db is seeded; holds the pod out of the service, no restart
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5 # a cpu-saturated worker still answers /ready; 2s flapped it out under spike
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: prometheus
+              mountPath: /run/prometheus
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: prometheus
+          emptyDir: {} # workers share this writable dir so /metrics aggregates across processes
+      {{- if and .Values.topologySpread.enabled (gt (int (include "bifrost.maxReplicas" .)) 1) }}
+      topologySpreadConstraints:
+        {{- range $key := list "kubernetes.io/hostname" "topology.kubernetes.io/zone" }}
+        - maxSkew: 1
+          topologyKey: {{ $key }}
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "bifrost.selectorLabels" $ | nindent 14 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

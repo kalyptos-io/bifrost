@@ -1,0 +1,217 @@
+# this chart backs two release units: the app plane (app.enabled) and the sync producer (sync.enabled).
+# fullnameOverride pins resource names when a unit's release name differs (the sync HR uses release name
+# bifrost-sync + fullnameOverride: bifrost so the worker stays bifrost-sync / bifrost-sync-work).
+fullnameOverride: ""
+
+# app plane: api Deployment/Service/HPA. false -> sync-only unit.
+app:
+  enabled: true
+
+image:
+  repository: ghcr.io/kalyptos-io/bifrost
+  tag: "" # empty -> chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# replicas: used only when autoscaling.enabled=false
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6 # see connection-budget note below before raising
+  targetCPUUtilizationPercentage: 75 # reused as the cpu trigger value under keda
+  # latency scaling via KEDA (cluster must have KEDA installed). enabled -> a ScaledObject owns
+  # autoscaling (cpu floor + p95 latency) and the plain hpa is not rendered.
+  keda:
+    enabled: false
+    prometheusAddress: "" # required when enabled, e.g. http://vmselect-main.monitoring.svc:8481/select/0/prometheus
+    targetLatency: "0.5" # p95 seconds; scale up when 95th-pct /resolve latency exceeds this
+    query: "" # optional full-query override; default = p95 /resolve latency, scoped to this namespace + service
+
+# prometheus scrape of /metrics. serviceMonitor is auto-discovered by the prometheus/vm operator.
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {} # only if your operator filters by serviceMonitorSelector; vm selectAllByDefault needs none
+
+# uvicorn workers per pod. null -> 1-per-core from a whole-core resources.limits.cpu (cores or clean milli, e.g. 2 or 2000m).
+# set an int to pin it explicitly. one worker pins one onnx thread, so ~1 core each.
+workers: null
+
+# cpu request==limit: workload is cpu-bound and hpa utilization is measured against the request,
+# so equal values keep utilization in 0-100% and scaling predictable. memory: ~120MB/worker warm
+# (measured: interpreter+onnx session+maps+inference), 1Gi gives 2 workers headroom for request spikes.
+resources:
+  requests:
+    cpu: "2"
+    memory: 512Mi
+  limits:
+    cpu: "2" # drives worker count when workers=null; whole cores (2) or clean milli (2000m)
+    memory: 1Gi
+
+# postgres dsn carries the password -> secret. set inline (chart makes a Secret) OR point at an
+# existing one. one of the two is required.
+database:
+  dsn: ""
+  existingSecret: ""
+  existingSecretKey: BIFROST_DATABASE_DSN
+  # serve pool host override (creds still from the dsn); point at <cluster>-r to spread reads off the primary
+  host: ""
+
+# opt-in sync worker (always-running Deployment; decoupled from deploys): datafordeler
+# delta fetch -> dlt staging -> a new dataset generation the app cuts over to out of band. it reconciles
+# on startup then sleeps intervalSeconds; a postgres advisory lock serializes runs (no k8s coordination).
+# hardened like the app: least-privilege privileged dsn (schema DDL, see database below), read-only
+# rootfs, no service-account token. egress restriction is NOT chart-owned (no NetworkPolicy here): the
+# cluster's own policy must allow api.datafordeler.dk:443 + postgres. needs that dsn + datafordeler creds.
+# no gate/threshold knobs: count floors are code defaults.
+sync:
+  enabled: false
+  intervalSeconds: 86400 # sleep between reconciles (daily); an unchanged-watermark tick is a fast no-op
+  runDeadlineSeconds: 21600 # in-process reconcile ceiling; a wedged run exits and the pod restarts
+  image:
+    repository: ghcr.io/kalyptos-io/bifrost/sync
+    tag: "" # empty -> app image.tag (sync build fingerprint must match app), else chart appVersion
+  # privileged sync dsn (schema DDL). existingSecret -> use it; empty -> app secret (dev only).
+  database:
+    existingSecret: ""
+    existingSecretKey: "" # empty -> database.existingSecretKey
+  # datafordeler oauth client-credentials. the secret holds the two keys below.
+  datafordeler:
+    existingSecret: "" # required when sync.enabled
+    clientIdKey: client_id
+    clientSecretKey: client_secret
+    base: https://api.datafordeler.dk
+    tokenUrl: https://auth.datafordeler.dk/realms/distribution/protocol/openid-connect/token
+  # persistent working dir (PVC): resumable download state + dlt pipeline dir (DLT_DATA_DIR) survive
+  # pod restarts -> the worker resumes rather than re-fetching.
+  storage:
+    size: 40Gi # datafordeler zips + dlt load packages + staging spill (tune to real)
+    className: "" # empty -> cluster default
+  tmpSize: 256Mi # writable /tmp scratch (read-only rootfs)
+  # district stamping forks this many processes -> BIFROST_SYNC_WORKERS. the fork count reads visible
+  # cpus (affinity), never the cgroup quota, so a cpu limit alone would not shrink it: keep the two in
+  # step (workers <= limits.cpu) or the snapshot oversubscribes and throttles.
+  workers: 4
+  resources:
+    requests:
+      cpu: "1" # idle between daily ticks; bursts to the limit for the snapshot
+      memory: 4Gi # snapshot peak: sql-streaming joins + shapely district stamp + chunk buffers
+    limits:
+      cpu: "4" # ceiling so a snapshot cannot take the node out from under the app/database
+      memory: 4Gi
+
+# app log level -> BIFROST_LOG_LEVEL (root handler, stdout). empty -> app default (INFO).
+logLevel: ""
+
+# cross-origin allowlist -> BIFROST_CORS_ORIGINS (comma-separated). empty -> app default "*" (public read api).
+corsOrigins: ""
+
+# response cache (dragonfly/redis). empty url disables it (app is fail-open). per worker.
+cache:
+  url: ""
+  ttl: 86400
+
+# asyncpg pool, per worker. CONNECTION BUDGET: keep
+#   (maxReplicas + maxSurge) * workersPerPod * (pool.max + pool.min)  <=  pool.maxConnections - reserved
+# or postgres backends are exhausted. defaults: 7 * 2 * 12 = 168 < 190. the surge term is the rollout
+# (maxUnavailable 0, maxSurge 1); the + pool.min term is a generation cutover, where a draining old
+# pool sits beside the new one. raise via a pgbouncer in front of postgres, not by widening these.
+# maxConnections must mirror postgres max_connections.
+dbPool:
+  min: 2
+  max: 10
+  maxConnections: 200
+  # backends held out of the app budget: superuser, the sync producer, and one short-lived
+  # connection per worker every 300s for the serving-lease beat (a write, so never the serve pool)
+  reserved: 10
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# demo web ui (separate nginx deployment). not on the request path; ships for easy deployment.
+ui:
+  enabled: true
+  image:
+    repository: ghcr.io/kalyptos-io/bifrost/ui
+    tag: "" # empty -> chart appVersion
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # browser-side api base. "" -> relative same-origin (ui behind the same ingress host as the api,
+  # see ingress.apiPaths). set an absolute URL only when the api lives on a different origin.
+  apiBase: ""
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 64Mi
+
+# api documentation site (separate nginx deployment). not on the request path.
+docs:
+  enabled: true
+  image:
+    repository: ghcr.io/kalyptos-io/bifrost/docs
+    tag: "" # empty -> chart appVersion
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # browser-side api base. "" -> relative same-origin (docs behind the same ingress host as the
+  # api). runtime knob: served as env.js, no rebuild needed.
+  apiBase: ""
+  # build-time knob: astro bakes this into every asset url. changing it means rebuilding the image
+  # with --build-arg DOCS_BASE=<path>; no trailing slash.
+  basePath: /docs
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 64Mi
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # [{ host: bifrost.example.com }] - when ui.enabled, paths route automatically (apiPaths -> api,
+  # / -> ui); otherwise set per-host paths: [{ path: /, pathType: Prefix }].
+  hosts: []
+  # api paths kept on the app service when ui.enabled (/metrics stays off ingress, scraped via Service).
+  apiPaths:
+    - /resolve
+    - /search
+    - /health
+    - /ready
+    - /swagger
+    - /openapi.json
+  tls: []
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# soft spread across hosts + zones; auto no-op at a single replica.
+topologySpread:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+priorityClassName: ""
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

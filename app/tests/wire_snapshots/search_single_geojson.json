@@ -1,0 +1,1 @@
+{"query":"vor frue","matches":[{"kind":"sogn","result":"Vor Frue Sogn","lifecycle":"current","components":{"sogn":"Vor Frue Sogn"},"postcodes":null,"geometry":{"srid":25832,"geojson":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]},"vejpunkt":null},"meta":{"score":1.0,"confidence":"A","uuid":null}}]}

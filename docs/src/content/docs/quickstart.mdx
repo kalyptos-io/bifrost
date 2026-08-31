@@ -1,0 +1,104 @@
+---
+title: Quickstart
+description: One POST /resolve call, its response annotated field by field.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A request is one address, sent as free text. There is nothing else to configure.
+
+<Tabs>
+<TabItem label="curl">
+
+```sh
+curl -sX POST https://bifrost.kalyptos.io/resolve \
+  -H 'content-type: application/json' \
+  -d '{"query": "Rådhuspladsen 1, 1550 København V"}'
+```
+
+</TabItem>
+<TabItem label="JavaScript">
+
+```js
+fetch('https://bifrost.kalyptos.io/resolve', {
+	method: 'POST',
+	headers: { 'content-type': 'application/json' },
+	body: JSON.stringify({ query: 'Rådhuspladsen 1, 1550 København V' })
+})
+	.then((r) => r.json())
+	.then(({ matches }) => console.log(matches))
+	.catch(console.error);
+```
+
+</TabItem>
+<TabItem label="Python">
+
+```python
+import httpx
+
+matches = httpx.post(
+    "https://bifrost.kalyptos.io/resolve",
+    json={"query": "Rådhuspladsen 1, 1550 København V"},
+).json()["matches"]
+```
+
+</TabItem>
+</Tabs>
+
+## The response
+
+```json
+{
+  "query": "Rådhuspladsen 1, 1550 København V",
+  "matches": [
+    {
+      "kind": "address",
+      "result": "Rådhuspladsen 1, 1550 København V",
+      "lifecycle": "current",
+      "components": {
+        "street": "Rådhuspladsen",
+        "house_number": "1",
+        "postcode": "1550",
+        "city": "København V"
+      },
+      "postcodes": null,
+      "geometry": {
+        "srid": 25832,
+        "geojson": { "type": "Point", "coordinates": [724434.93, 6175755.61] },
+        "vejpunkt": [724454.63549553, 6175800.01960673]
+      },
+      "meta": {
+        "score": 0.002198900732783531,
+        "confidence": "A",
+        "uuid": null
+      }
+    }
+  ]
+}
+```
+
+Field by field:
+
+- `query` echoes your input, so you can correlate a batch response by position.
+- `matches` is ranked best first and holds five entries by default, up to `limit`. The example
+  shows the first one only; the call returns four more, each with `confidence: "C"` and a negative
+  score.
+- `kind` tells you what the match describes. Here it is an address. A projection returns `kommune`,
+  `ejendom` and so on.
+- `result` is the display string.
+- `lifecycle` is the state of the designation: `current`, `preliminary`, `retired` or
+  `abandoned`. Requests default to `current`.
+- `components` are the parsed parts, keyed by the match kind.
+- `postcodes` lists a road's postcodes. It is `null` for every kind except `street`.
+- `geometry.geojson` is EPSG:25832 easting and northing in metres, not lat/lon. `vejpunkt` is the
+  point on the road, and the geojson point is the access point on the property.
+- `meta.confidence` is `A`, `B` or `C`. `A` is a clean, unambiguous match and `C` is a fuzzy or
+  flat-field one. `meta.score` is a signed belief score, not a probability.
+
+[Results](./results/) covers every field in full.
+
+## Next
+
+- [Resolve](./resolve/) for components, projections, lifecycle and batch.
+- [Search](./search/) for the flat register lookup.
+- [Errors and limits](./errors/) for what fails, and how.

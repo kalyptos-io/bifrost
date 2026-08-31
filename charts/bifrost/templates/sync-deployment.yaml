@@ -1,0 +1,97 @@
+{{- if .Values.sync.enabled }}
+{{- if not .Values.sync.database.existingSecret }}
+{{- fail "sync.database.existingSecret is required when sync.enabled: the worker runs a privileged DSN (schema DDL) that must be a pre-existing external secret, not the app Secret" }}
+{{- end }}
+# sync worker (its own release unit, carries no helm hooks): reconciles on startup then sleeps sync.intervalSeconds, fetching
+# datafordeler deltas into dlt staging and registering a new dataset generation the app cuts over to
+# out of band, decoupled from deploys. an unchanged watermark makes a tick a fast no-op; a postgres
+# advisory lock serializes runs (no k8s coordination). Recreate + RWO pvc: never two pods attached.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bifrost.fullname" . }}-sync
+  labels:
+    {{- include "bifrost.sync.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "bifrost.sync.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bifrost.sync.selectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sync
+          image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag | default .Values.image.tag | default .Chart.AppVersion }}"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          args: ["worker"]
+          env:
+            # unbuffer python's pipe stdout, else logs stall and an OOM loses the unflushed tail
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: BIFROST_SYNC_INTERVAL_SECONDS
+              value: {{ .Values.sync.intervalSeconds | quote }}
+            - name: BIFROST_SYNC_RUN_DEADLINE_SECONDS
+              value: {{ .Values.sync.runDeadlineSeconds | quote }}
+            - name: BIFROST_SYNC_WORKERS
+              value: {{ .Values.sync.workers | quote }}
+            - name: BIFROST_DATABASE_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bifrost.syncSecretName" . }}
+                  key: {{ include "bifrost.syncSecretKey" . }}
+            - name: DATAFORDELER_BASE
+              value: {{ .Values.sync.datafordeler.base | quote }}
+            - name: DATAFORDELER_TOKEN_URL
+              value: {{ .Values.sync.datafordeler.tokenUrl | quote }}
+            - name: DATAFORDELER_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "sync.datafordeler.existingSecret is required when sync.enabled" .Values.sync.datafordeler.existingSecret }}
+                  key: {{ .Values.sync.datafordeler.clientIdKey }}
+            - name: DATAFORDELER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "sync.datafordeler.existingSecret is required when sync.enabled" .Values.sync.datafordeler.existingSecret }}
+                  key: {{ .Values.sync.datafordeler.clientSecretKey }}
+            # dlt pipeline dir on the PVC (state + load packages survive restarts -> resume)
+            - name: DLT_DATA_DIR
+              value: /work/.dlt
+          resources:
+            {{- toYaml .Values.sync.resources | nindent 12 }}
+          volumeMounts:
+            - name: work
+              mountPath: /work
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: work
+          persistentVolumeClaim:
+            claimName: {{ include "bifrost.fullname" . }}-sync-work
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.sync.tmpSize }}
+{{- end }}

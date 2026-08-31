@@ -1,0 +1,19 @@
+[project]
+name = "bifrost-train"
+version = "0.0.0" # local-only, never released; placeholder
+description = "Bifrost training environment - local only. Produces the NER segmenter + synthetic corpus."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "bifrost",            # shared normalizer (serving == generation parity)
+    "torch>=2.12",        # local-only: trains the segmenter; never enters the serving image
+    "onnx>=1.22",         # export the trained artifact
+    "onnxscript>=0.7",    # backs the torch.export-based onnx exporter (dynamo=True)
+    "onnxruntime>=1.28,<1.29",  # the one inference path: scored by the eval, loaded by app later
+    "textual>=8.2",       # local-only: the playground TUI (resolve + segment modes)
+]
+
+[tool.uv.sources]
+bifrost = { workspace = true }
+
+[tool.uv]
+package = false  # local scripts, not a built/installed package

@@ -1,0 +1,144 @@
+---
+title: Search
+description: POST /search - flat register lookup by name or code, across eleven registers.
+---
+
+`POST /search` matches one string against one register. There is no address parsing and no
+completion: you send a name or a code, and you get ranked entries from that register.
+
+```json
+{ "query": "vestergade", "target": "street", "limit": 2 }
+```
+
+```json
+{
+  "query": "vestergade",
+  "matches": [
+    {
+      "kind": "street",
+      "result": "Vestergade",
+      "lifecycle": "current",
+      "components": { "street": "Vestergade" },
+      "postcodes": ["8550"],
+      "geometry": null,
+      "meta": { "score": 1.0, "confidence": "C", "uuid": null }
+    },
+    {
+      "kind": "street",
+      "result": "Vestergade",
+      "lifecycle": "current",
+      "components": { "street": "Vestergade" },
+      "postcodes": ["6650"],
+      "geometry": null,
+      "meta": { "score": 1.0, "confidence": "C", "uuid": null }
+    }
+  ]
+}
+```
+
+Duplicate names are normal. Denmark has many Vestergades, and what separates them is `postcodes`,
+not the name. Equal top scores mean the field is flat, which is why both entries carry
+`confidence: "C"`.
+
+## Registers
+
+`target` is required in single-query mode. There is no default register.
+
+| `target` | Matches | Geometry |
+| --- | --- | --- |
+| `street` | Road names. Name only. | `MultiLineString` |
+| `postcode` | Postnummer code or its city name. | `MultiPolygon` |
+| `city` | Postdistrikt name. | `Polygon` or `MultiPolygon` |
+| `ejendom` | Property: BFE / ejerlav code, or a matrikel betegnelse. | `Polygon` |
+| `stednavne` | Danske stednavne place names. Name only. | Point, line or polygon |
+| `kommune` | Municipality name or code. | `MultiPolygon` |
+| `sogn` | Parish name or code. | `MultiPolygon` |
+| `region` | Region name or code. | `MultiPolygon` |
+| `retskreds` | Court district name or code. | `MultiPolygon` |
+| `politikreds` | Police district name or code. | `MultiPolygon` |
+| `opstillingskreds` | Nomination district name or code. | `MultiPolygon` |
+
+`stednavne` is search-only. It is not an address layer, so it cannot be a `/resolve` projection
+target.
+
+## Names and codes
+
+Input that is all ASCII digits is treated as a code. Anything else is matched as a name.
+
+- Leading zeros matter. A kommunekode is `"0101"`, not `"101"`. Codes are matched as raw
+  strings, not as integers.
+- `street` and `stednavne` are name-only. They carry no code, so a digit string is matched as a name
+  like any other. `"8000"` against `street` finds `Vej 8`, not postcode 8000.
+- `ejendom` digits match the BFE number and the ejerlav code. Non-digit input matches the matrikel
+  betegnelse, such as `"162 Vestervold Kvarter, København"`.
+- `postcode` digits match the postnummer, and text matches its city name.
+
+```json
+{ "query": "8000", "target": "postcode", "limit": 1 }
+```
+
+```json
+{
+  "query": "8000",
+  "matches": [
+    {
+      "kind": "postcode",
+      "result": "Aarhus C",
+      "lifecycle": "current",
+      "components": { "postcode": "8000", "city": "Aarhus C" },
+      "postcodes": null,
+      "geometry": null,
+      "meta": { "score": 1.0, "confidence": "A", "uuid": null }
+    }
+  ]
+}
+```
+
+## Limit and lifecycle
+
+`limit` is `1..100` and defaults to `5`. Anything outside that range returns a `422`.
+
+`lifecycle` works as it does on [`/resolve`](./resolve/#lifecycle): a non-empty, unique subset of
+`current`, `preliminary`, `retired` and `abandoned`, defaulting to `["current"]`.
+
+## Batch mode
+
+Pass an array of items as `query`. Each item carries its own `input` and `target`, both required,
+plus an optional `limit` and `lifecycle`. Setting `target`, `limit` or `lifecycle` at the top level
+returns a `422`. Only `geometry` stays at the top level, and it must be `false`: every search target
+is a polygon, so a batch never carries geometry. Fetch the geometry of an interesting hit with a
+follow-up single query.
+
+```json
+{
+	"query": [
+		{ "input": "aarhus", "target": "kommune", "limit": 1 },
+		{ "input": "vestergade", "target": "street", "limit": 1 }
+	],
+	"geometry": false
+}
+```
+
+The response is a JSON array in request order. The cap is 1000 items. See
+[Errors and limits](./errors/#batch-failures).
+
+## Request fields
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `query` | string \| array | - | Required. A string, or an array of items for batch. |
+| `target` | string | - | Required in single mode. Single-query only. |
+| `limit` | integer | `5` | `1..100`. Single-query only. |
+| `lifecycle` | array | `["current"]` | Non-empty, unique. Single-query only. |
+| `geometry` | boolean | `false` | Attach the geometry block. Must stay `false` in batch mode. |
+
+There is no `uuid` option on `/search`. `meta.uuid` is always `null`.
+
+### Batch item fields
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `input` | string | - | Required, non-empty. |
+| `target` | string | - | Required. |
+| `limit` | integer | `5` | `1..100`. |
+| `lifecycle` | array | `["current"]` | As above. |

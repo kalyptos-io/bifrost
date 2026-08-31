@@ -1,0 +1,139 @@
+# project name pinned: it otherwise follows the directory, which orphans the data volumes.
+name: bifrost
+
+# read-only rootless from day one. shared hardening via anchor; per-service writable paths via tmpfs.
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  app:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    environment:
+      BIFROST_DATABASE_DSN: postgresql://bifrost:bifrost@postgres:5432/bifrost
+      BIFROST_CACHE_URL: redis://dragonfly:6379/0
+      PROMETHEUS_MULTIPROC_DIR: /run/prometheus
+    ports:
+      - "8000:8000"
+    tmpfs:
+      - /tmp
+      - /run/prometheus
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_started
+
+  postgres:
+    <<: *hardening
+    image: postgres:18.6
+    # max_connections headroom for workers * db_pool_max; work_mem keeps the recovery sort in memory
+    command: ["postgres", "-c", "max_connections=200", "-c", "work_mem=64MB"]
+    # ceiling vs a recovery-sort burst (~work_mem * pool); k8s pod limits must mirror this
+    mem_limit: 3g
+    environment:
+      POSTGRES_USER: bifrost
+      POSTGRES_PASSWORD: bifrost
+      POSTGRES_DB: bifrost
+    cap_add: [CHOWN, FOWNER, SETGID, SETUID, DAC_OVERRIDE]
+    # loopback-only publish so host-run tooling (bifrost-sync, eval harness) can reach it
+    ports:
+      - "127.0.0.1:5432:5432"
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./app/src/bifrost/db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bifrost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # live-sync worker (datafordeler delta fetch -> dlt staging -> generation snapshot): reconciles on
+  # startup then sleeps BIFROST_SYNC_INTERVAL_SECONDS. profile-gated so it never runs on a normal `up`.
+  # loop: docker compose --profile sync up sync. one-shot fill (bootstrap/ci): override the command,
+  # docker compose --profile sync run sync sync (no --rm: a failed run keeps its logs for `docker logs`).
+  sync:
+    <<: *hardening
+    profiles: [sync]
+    build:
+      context: .
+      dockerfile: sync/Dockerfile
+    environment:
+      PYTHONUNBUFFERED: "1"
+      BIFROST_DATABASE_DSN: postgresql://bifrost:bifrost@postgres:5432/bifrost
+      DATAFORDELER_BASE: ${DATAFORDELER_BASE:-https://api.datafordeler.dk}
+      DATAFORDELER_TOKEN_URL: ${DATAFORDELER_TOKEN_URL:-https://auth.datafordeler.dk/realms/distribution/protocol/openid-connect/token}
+      DATAFORDELER_CLIENT_ID: ${DATAFORDELER_CLIENT_ID:-}
+      DATAFORDELER_CLIENT_SECRET: ${DATAFORDELER_CLIENT_SECRET:-}
+      DLT_DATA_DIR: /work/.dlt
+    volumes:
+      - sync_work:/work
+    tmpfs:
+      - /tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["worker"]
+    restart: unless-stopped
+
+  # demo web ui (nginx). no shared-host ingress here, so the browser reaches the api cross-origin
+  # (app CORS is *); env.js is injected with the host-published api base.
+  ui:
+    <<: *hardening
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    ports:
+      - "5173:8080"
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    volumes:
+      - ./compose-env.js:/usr/share/nginx/html/env.js:ro
+    depends_on:
+      - app
+
+  # docs site (astro/starlight, nginx). served at the port root here, not the chart's /docs base,
+  # so the baked asset urls stay relative to :4321.
+  docs:
+    <<: *hardening
+    build:
+      context: ./docs
+      dockerfile: Dockerfile
+      args:
+        DOCS_BASE: /
+    ports:
+      - "4321:8080"
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    volumes:
+      - ./compose-env.js:/usr/share/nginx/html/env.js:ro
+
+  # response cache (redis protocol); the app reads it via BIFROST_CACHE_URL.
+  dragonfly:
+    <<: *hardening
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0@sha256:0fa01a2b929e704c7a9300d23e7f52002ebd39e90996fb8bb63826aed92fa06f
+    command: ["--cache_mode", "--proactor_threads=2"]
+    cap_add: [CHOWN, FOWNER, SETGID, SETUID, DAC_OVERRIDE]  # root entrypoint drops privs via setpriv
+    ports:
+      - "127.0.0.1:6379:6379"
+    ulimits:
+      memlock: -1
+    tmpfs:
+      - /tmp
+    volumes:
+      - dragonfly_data:/data
+
+volumes:
+  pgdata:
+  dragonfly_data:
+  sync_work:

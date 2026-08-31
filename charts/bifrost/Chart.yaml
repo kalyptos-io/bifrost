@@ -1,0 +1,7 @@
+apiVersion: v2
+name: bifrost
+description: Danish address resolution belief engine
+type: application
+# placeholders; both stamped from the git tag at `helm package` time in CI
+version: 0.0.0
+appVersion: "0.0.0"

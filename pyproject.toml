@@ -1,0 +1,23 @@
+[tool.uv.workspace]
+members = ["app", "train", "sync"]
+
+[tool.uv]
+# dlt pulls gitpython transitively; <3.1.51 carries command/path-injection advisories
+constraint-dependencies = ["gitpython>=3.1.51"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[dependency-groups]
+dev = ["pytest>=9", "pytest-asyncio>=1.4", "ruff>=0.15"]
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests", "train", "sync/tests"]
+asyncio_mode = "auto"

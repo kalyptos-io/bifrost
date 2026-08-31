@@ -1,0 +1,28 @@
+Bifrost {{ .Chart.AppVersion }} deployed as {{ include "bifrost.fullname" . }}.
+
+"Be sober now - cease from your surfeit, cease to be glamored by irrational sleep!"
+
+{{- if .Values.app.enabled }}
+{{- if not .Values.cache.url }}
+
+Response cache is OFF (cache.url empty); the app runs fail-open. Set cache.url to a dragonfly/redis
+endpoint to enable it.
+{{- end }}
+{{- if .Values.autoscaling.keda.enabled }}
+
+Latency autoscaling is ON via KEDA (p95 > {{ .Values.autoscaling.keda.targetLatency }}s alongside the cpu floor).
+Ensure you have KEDA available in the cluster.
+{{- end }}
+{{- end }}
+{{- if .Values.sync.enabled }}
+
+Sync worker ON (bifrost-sync worker, reconcile every {{ .Values.sync.intervalSeconds }}s), its own release unit
+with no helm hooks: it reconciles on startup then each tick fetches datafordeler deltas into dlt staging and
+registers a new generation only when staging changed or none matches the build shape, else a fast no-op; a
+postgres advisory lock serializes runs. The app unit orders on this data: new app pods wait unready for a
+matching generation while the old release keeps serving. Force a tick now with
+  kubectl rollout restart deployment/{{ include "bifrost.fullname" . }}-sync
+Needs a privileged sync.database.existingSecret (schema DDL). Egress is not chart-owned: your cluster's
+own NetworkPolicy must allow this pod out to api.datafordeler.dk:443 and postgres.
+/resolve has no data until the first generation.
+{{- end }}

@@ -1,0 +1,33 @@
+{{- if and .Values.app.enabled .Values.autoscaling.enabled .Values.autoscaling.keda.enabled }}
+{{- if not .Values.autoscaling.keda.prometheusAddress }}
+{{- fail "set autoscaling.keda.prometheusAddress when autoscaling.keda.enabled" }}
+{{- end }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "bifrost.fullname" . }}
+  labels:
+    {{- include "bifrost.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "bifrost.fullname" . }}
+  minReplicaCount: {{ .Values.autoscaling.minReplicas }} # explicit: keda defaults to 0; model warmup ~150s
+  maxReplicaCount: {{ .Values.autoscaling.maxReplicas }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300 # p95 is noisy; damp scale-down flapping
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ .Values.autoscaling.targetCPUUtilizationPercentage | quote }}
+    - type: prometheus
+      metricType: Value # latency is not divisible by replica count; AverageValue would be wrong
+      metadata:
+        serverAddress: {{ .Values.autoscaling.keda.prometheusAddress | quote }}
+        threshold: {{ .Values.autoscaling.keda.targetLatency | quote }}
+        # service= scopes to this release (the servicemonitor stamps it; selector labels are not scraped)
+        query: {{ .Values.autoscaling.keda.query | default (printf "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"%s\", service=\"%s\", handler=\"/resolve\"}[2m])) by (le))" .Release.Namespace (include "bifrost.fullname" .)) | quote }}
+{{- end }}
