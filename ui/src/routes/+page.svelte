@@ -2,8 +2,9 @@
 	import Map from '$lib/Map.svelte';
 	import JsonView from '$lib/JsonView.svelte';
 	import {
-		resolve,
-		search,
+		resolveRequest,
+		searchRequest,
+		send,
 		ApiError,
 		RESOLVE_TARGETS,
 		SEARCH_TARGETS,
@@ -79,8 +80,10 @@
 	} | null>(null);
 	let matchCount = $state('0 MATCHES');
 	let geometry = $state<Geometry | null>(null);
-	let lines = $state<string[]>([]);
+	let resLines = $state<string[]>([]);
+	let reqLines = $state<string[]>([]);
 	let jsonOpen = $state(false);
+	let jsonView = $state<'request' | 'response'>('response');
 	let optGeometry = $state(true);
 	let optUuid = $state(false);
 
@@ -92,6 +95,8 @@
 			? searchQuery.trim().length > 0
 			: freeform.trim().length > 0 || COMPONENT_FIELDS.some((k) => fields[k].trim().length > 0)
 	);
+
+	const lines = $derived(jsonView === 'request' ? reqLines : resLines);
 
 	const verb = $derived(tab === 'search' ? 'Search' : 'Resolve');
 	const btn = $derived.by(() => {
@@ -128,7 +133,7 @@
 		geometry = null;
 		match = null;
 		matchCount = '0 MATCHES';
-		lines = [];
+		resLines = [];
 	}
 
 	function schedule() {
@@ -136,6 +141,7 @@
 		if (!hasInput) {
 			reqId++;
 			clearResult();
+			reqLines = [];
 			status = 'disabled';
 			statusLine = idleLine();
 			return;
@@ -149,6 +155,7 @@
 		tab = t;
 		status = 'disabled';
 		clearResult();
+		reqLines = [];
 		resOpen = false;
 		regOpen = false;
 		lcOpen = false;
@@ -167,28 +174,30 @@
 		status = 'searching';
 		statusLine = isSearch ? 'SEARCHING · POST /search' : 'RESOLVING · POST /resolve';
 		const qLabel = isSearch ? searchQuery.trim() : freeform.trim() || 'components';
+		const req = isSearch
+			? searchRequest({
+					query: searchQuery.trim(),
+					target: searchTarget,
+					limit: +searchLimit || 5,
+					lifecycle,
+					geometry: optGeometry
+				})
+			: resolveRequest({
+					query: freeform.trim() || undefined,
+					components: Object.fromEntries(
+						COMPONENT_FIELDS.map((k) => [k, fields[k].trim()]).filter(([, v]) => v)
+					),
+					target: resolveTarget,
+					lifecycle,
+					geometry: optGeometry,
+					uuid: optUuid,
+					limit: +resolveLimit || 5
+				});
+		reqLines = JSON.stringify(req.body, null, 2).split('\n');
 		try {
-			const data = isSearch
-				? await search({
-						query: searchQuery.trim(),
-						target: searchTarget,
-						limit: +searchLimit || 5,
-						lifecycle,
-						geometry: optGeometry
-					})
-				: await resolve({
-						query: freeform.trim() || undefined,
-						components: Object.fromEntries(
-							COMPONENT_FIELDS.map((k) => [k, fields[k].trim()]).filter(([, v]) => v)
-						),
-						target: resolveTarget,
-						lifecycle,
-						geometry: optGeometry,
-						uuid: optUuid,
-						limit: +resolveLimit || 5
-					});
+			const data = await send(req);
 			if (id !== reqId) return;
-			lines = JSON.stringify(data, null, 2).split('\n');
+			resLines = JSON.stringify(data, null, 2).split('\n');
 			const matches = data.matches || [];
 			if (!matches.length) {
 				geometry = null;
@@ -222,7 +231,7 @@
 			}
 		} catch (err) {
 			if (id !== reqId) return;
-			clearResult();
+			clearResult(); // reqLines kept: on a failure the sent request is the thing to read
 			status = 'error';
 			statusLine =
 				err instanceof ApiError
@@ -386,7 +395,7 @@
 			</div>
 		{/if}
 
-		{#if lines.length}
+		{#if reqLines.length || resLines.length}
 			<div class="json" class:open={jsonOpen}>
 				<button class="json__h" onclick={() => (jsonOpen = !jsonOpen)} aria-expanded={jsonOpen}
 					>JSON</button
@@ -397,6 +406,17 @@
 						{#if tab === 'resolve'}
 							{@render toggle('uuid', optUuid, (v) => (optUuid = v))}
 						{/if}
+					</div>
+					<div class="json__view">
+						<span class:on={jsonView === 'request'}>request</span>
+						<input
+							type="checkbox"
+							role="switch"
+							aria-label="show request or response"
+							checked={jsonView === 'response'}
+							onchange={(e) => (jsonView = e.currentTarget.checked ? 'response' : 'request')}
+						/>
+						<span class:on={jsonView === 'response'}>response</span>
 					</div>
 					<JsonView {lines} />
 				</div>
@@ -682,7 +702,8 @@
 	.tog:has(input:checked) {
 		color: var(--text-inverse);
 	}
-	.tog input {
+	.tog input,
+	.json__view input {
 		appearance: none;
 		flex: none;
 		position: relative;
@@ -694,7 +715,8 @@
 		cursor: pointer;
 		transition: var(--transition-control);
 	}
-	.tog input::after {
+	.tog input::after,
+	.json__view input::after {
 		content: '';
 		position: absolute;
 		top: 1px;
@@ -709,6 +731,36 @@
 	}
 	.tog input:checked::after {
 		background: var(--pine-400);
+		transform: translateX(10px);
+	}
+
+	/* two-sided: neither position is an off state, so the knob stays accented in both */
+	.json__view {
+		flex: none;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: 9px var(--space-2);
+		border-bottom: 1px solid var(--line-inverse);
+		font-family: var(--font-mono);
+		font-size: var(--size-mono-xs);
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--graphite-400);
+	}
+	.json__view span {
+		transition: var(--transition-control);
+	}
+	.json__view span.on {
+		color: var(--text-inverse);
+	}
+	.json__view input {
+		border-color: var(--pine-400);
+	}
+	.json__view input::after {
+		background: var(--pine-400);
+	}
+	.json__view input:checked::after {
 		transform: translateX(10px);
 	}
 

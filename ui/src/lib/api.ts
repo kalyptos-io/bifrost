@@ -119,11 +119,16 @@ function apiBase(): string {
 	return (b ?? '').replace(/\/$/, '');
 }
 
-async function post(endpoint: string, body: unknown): Promise<AddressResult> {
-	const r = await fetch(apiBase() + endpoint, {
+export interface ApiRequest {
+	endpoint: string;
+	body: Record<string, unknown>;
+}
+
+export async function send(req: ApiRequest): Promise<AddressResult> {
+	const r = await fetch(apiBase() + req.endpoint, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(body)
+		body: JSON.stringify(req.body)
 	});
 	if (!r.ok) throw new ApiError(r.status, r.statusText);
 	return (await r.json()) as AddressResult;
@@ -135,7 +140,7 @@ function wireLifecycle(lifecycle?: Lifecycle[]): Lifecycle[] | undefined {
 	return lifecycle;
 }
 
-export function resolve(opts: {
+export function resolveRequest(opts: {
 	query?: string;
 	components?: Record<string, string>;
 	target: ResolveTarget;
@@ -143,7 +148,7 @@ export function resolve(opts: {
 	geometry?: boolean;
 	uuid?: boolean;
 	limit?: number;
-}): Promise<AddressResult> {
+}): ApiRequest {
 	const body: Record<string, unknown> = {
 		project: opts.target,
 		geometry: opts.geometry ?? true,
@@ -154,16 +159,16 @@ export function resolve(opts: {
 	if (opts.components && Object.keys(opts.components).length) body.components = opts.components;
 	const lifecycle = wireLifecycle(opts.lifecycle);
 	if (lifecycle) body.lifecycle = lifecycle;
-	return post('/resolve', body);
+	return { endpoint: '/resolve', body };
 }
 
-export function search(opts: {
+export function searchRequest(opts: {
 	query: string;
 	target: SearchTarget;
 	limit: number;
 	lifecycle?: Lifecycle[];
 	geometry?: boolean;
-}): Promise<AddressResult> {
+}): ApiRequest {
 	const limit = Math.min(100, Math.max(1, opts.limit || 5)); // SearchRequest rejects out of 1..100
 	const body: Record<string, unknown> = {
 		query: opts.query,
@@ -173,5 +178,5 @@ export function search(opts: {
 	};
 	const lifecycle = wireLifecycle(opts.lifecycle);
 	if (lifecycle) body.lifecycle = lifecycle;
-	return post('/search', body);
+	return { endpoint: '/search', body };
 }
