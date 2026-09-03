@@ -200,7 +200,8 @@ ingress:
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
+  # maxUnavailable, not minAvailable: at a 1-pod floor minAvailable pins the pod to a draining node
+  maxUnavailable: 1
 
 # soft spread across hosts + zones; auto no-op at a single replica.
 topologySpread:

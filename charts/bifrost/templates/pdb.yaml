@@ -1,4 +1,4 @@
-{{- if and .Values.app.enabled .Values.podDisruptionBudget.enabled (gt (int (include "bifrost.maxReplicas" .)) 1) }}
+{{- if and .Values.app.enabled .Values.podDisruptionBudget.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "bifrost.labels" . | nindent 4 }}
 spec:
-  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
   selector:
     matchLabels:
       {{- include "bifrost.selectorLabels" . | nindent 6 }}
