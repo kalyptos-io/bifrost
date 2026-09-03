@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import dlt
 from dlt.common.pipeline import TRefreshMode
@@ -66,7 +66,11 @@ def entity_resource(spec: EntitySpec, rows: Iterable[dict], new_cursor: int):
         state = dlt.current.resource_state()  # cursor + contract commit atomically with the load
         state["gen"] = new_cursor
         state["contract"] = contract_hash(spec)
-        yield from rows
+        n = 0
+        for row in rows:
+            n += 1
+            yield row
+        state["rows"] = n
 
     return resource()
 
@@ -123,24 +127,27 @@ def run_loads(
     return infos
 
 
-def cursors(pipeline: dlt.Pipeline) -> dict[str, int]:
-    """{table -> committed cursor} across all register sources in pipeline state."""
-    out: dict[str, int] = {}
+def _state_field(pipeline: dlt.Pipeline, key: str) -> dict[str, Any]:
+    """{table -> committed `key`} across all register sources in pipeline state."""
+    out: dict[str, Any] = {}
     for src_state in pipeline.state.get("sources", {}).values():
         for table, rstate in src_state.get("resources", {}).items():
-            if "gen" in rstate:
-                out[table] = rstate["gen"]
+            if key in rstate:
+                out[table] = rstate[key]
     return out
+
+
+def cursors(pipeline: dlt.Pipeline) -> dict[str, int]:
+    return _state_field(pipeline, "gen")
 
 
 def contracts(pipeline: dlt.Pipeline) -> dict[str, str]:
-    """{table -> committed contract hash} across all register sources in pipeline state."""
-    out: dict[str, str] = {}
-    for src_state in pipeline.state.get("sources", {}).values():
-        for table, rstate in src_state.get("resources", {}).items():
-            if "contract" in rstate:
-                out[table] = rstate["contract"]
-    return out
+    return _state_field(pipeline, "contract")
+
+
+def staged_rows(pipeline: dlt.Pipeline) -> dict[str, int]:
+    """{table -> rows the last committed load staged}."""
+    return _state_field(pipeline, "rows")
 
 
 def drain(pipeline: dlt.Pipeline) -> None:

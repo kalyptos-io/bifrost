@@ -308,15 +308,28 @@ class _ConnParams(NamedTuple):
 
 
 async def _create_pool(p: _ConnParams, schema: str) -> asyncpg.Pool:
+    # the generations row commits last, so a backend that sees it replayed the whole generation
+    async def _replayed(conn: asyncpg.Connection) -> None:
+        if not await conn.fetchval(
+            "SELECT 1 FROM public.generations WHERE schema_name = $1", schema
+        ):
+            raise RuntimeError(f"generation {schema} not replayed on this backend")
+
     # bind the pool to the generation schema; serving SQL stays unqualified, public is the fallback
-    return await asyncpg.create_pool(
+    pool = asyncpg.create_pool(
         p.dsn,
         host=p.host,
         min_size=p.min_size,
         max_size=p.max_size,
         command_timeout=_COMMAND_TIMEOUT,
         server_settings={"search_path": f"{schema}, public"},
+        init=_replayed,
     )
+    try:
+        return await pool
+    except BaseException:  # a sibling min_size connection may already be open
+        pool.terminate()
+        raise
 
 
 class SourceSnapshot:

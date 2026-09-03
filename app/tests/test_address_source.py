@@ -618,3 +618,29 @@ async def test_streets_by_names_batches_and_maps(geo_source):
     roads = await geo_source.streets_by_names([("hovedgaden", {"6900"})])
     assert roads["hovedgaden"].geometry == _GEO_A and roads["hovedgaden"].postcodes == ("6900",)
     assert await geo_source.streets_by_names([("nope", None)]) == {}  # unranked name absent
+
+
+@_needs_db
+async def test_create_pool_refuses_a_backend_without_the_generation_row():
+    # -r load-balances per connection, so a lagging standby would serve empty tables unchecked
+    from bifrost.arms.repository import _ConnParams, _create_pool
+    from bifrost.db import generations
+    from bifrost.db.shape import build_fingerprint
+
+    schema = f"gen_test_{uuid4().hex}"
+    shape = build_fingerprint()
+    conn = await asyncpg.connect(_DSN)
+    try:
+        await conn.execute(f'CREATE SCHEMA "{schema}"')
+        params = _ConnParams(_DSN, None, 1, 2)
+        with pytest.raises(RuntimeError, match="not replayed"):
+            await _create_pool(params, schema)
+
+        await generations.register(conn, generations.Generation(schema, shape, 3, 0, 0, 0, 0, None))
+        pool = await _create_pool(params, schema)
+        await pool.close()
+    finally:
+        await conn.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+        await conn.execute("DELETE FROM public.generations WHERE schema_name = $1", schema)
+        await conn.execute("DELETE FROM public.serving_leases WHERE schema_name = $1", schema)
+        await conn.close()

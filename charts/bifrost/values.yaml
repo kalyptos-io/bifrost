@@ -66,7 +66,8 @@ database:
 # on startup then sleeps intervalSeconds; a postgres advisory lock serializes runs (no k8s coordination).
 # hardened like the app: least-privilege privileged dsn (schema DDL, see database below), read-only
 # rootfs, no service-account token. egress restriction is NOT chart-owned (no NetworkPolicy here): the
-# cluster's own policy must allow api.datafordeler.dk:443 + postgres. needs that dsn + datafordeler creds.
+# cluster's own policy must allow api.datafordeler.dk:443 + auth.datafordeler.dk:443 (oauth token) +
+# postgres. needs that dsn + datafordeler creds.
 # no gate/threshold knobs: count floors are code defaults.
 sync:
   enabled: false
@@ -199,7 +200,8 @@ ingress:
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
+  # maxUnavailable, not minAvailable: at a 1-pod floor minAvailable pins the pod to a draining node
+  maxUnavailable: 1
 
 # soft spread across hosts + zones; auto no-op at a single replica.
 topologySpread:

@@ -31,7 +31,7 @@ from .config import Config
 from .fetch import catalog, download
 from .fetch.session import Session
 from .lock import LockHeld, advisory_lock
-from .pipeline import Load, contracts, cursors, drain, make_pipeline, run_loads
+from .pipeline import Load, contracts, cursors, drain, make_pipeline, run_loads, staged_rows
 from .plan import Action, EntityPlan, needs_snapshot, plan_staging
 from .reduce import baseline_rows, reduce_delta_files
 from .registers import ALL_ENTITIES, DAGI, DAR, DS, EBR, MAT, EntitySpec
@@ -205,12 +205,11 @@ def _reconcile(cfg: Config, floors: Floors, args: argparse.Namespace, status: St
     print(f"[i] planning {len(ALL_ENTITIES)} entities against committed cursors...")
     listings = _list_catalog(session)
     deltas = _list_deltas(listings)
-    plans = plan_staging(
-        deltas,
-        cursors(pipeline),
-        contracts(pipeline),
-        empty=asyncio.run(_empty_staged(cfg.dsn)),
-    )
+    # a zero-row load creates no table: absent by design, not a lost load
+    empty = asyncio.run(_empty_staged(cfg.dsn)) - {
+        t for t, n in staged_rows(pipeline).items() if n == 0
+    }
+    plans = plan_staging(deltas, cursors(pipeline), contracts(pipeline), empty=empty)
     _log_plan(plans)
 
     status.phase(Phase.FETCH)
