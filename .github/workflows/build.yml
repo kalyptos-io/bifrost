@@ -213,7 +213,8 @@ jobs:
           cache-to: type=gha,mode=max,scope=docs
 
   chart:
-    needs: test
+    # last: flux auto-deploys the chart, so its appVersion must already be pullable
+    needs: [test, image, ui-image, docs-image]
     runs-on: ubuntu-latest
     permissions:
       contents: read
