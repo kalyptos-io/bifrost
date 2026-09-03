@@ -168,8 +168,6 @@ def test_forced_baseline_shares_listing_between_cursor_and_total_selection(monke
 
 
 def test_a_zero_row_load_is_not_read_as_a_lost_load(monkeypatch, tmp_path):
-    # upstream has no rows for this entity: the table is legitimately absent, so the committed
-    # cursor stands and the tick skips rather than re-baselining it every run
     spec = _spec()
     _, _, staged = _stub_reconcile(monkeypatch, tmp_path, spec, _listing())
 

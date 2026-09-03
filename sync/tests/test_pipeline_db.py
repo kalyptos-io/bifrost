@@ -271,7 +271,7 @@ async def test_hist_composite_key_merges_closing_delta_in_place(env: _Env):
 
 @_needs_db
 async def test_header_only_total_commits_state_and_creates_no_table(env: _Env):
-    # upstream ships a header-only zip for some entities; dlt commits the cursor but makes no table
+    # upstream really does ship header-only totals for some entities
     pn = _spec("dar_postnummer")
     z = _zip(env._cfg.work_dir / "pn.zip", [], ["id_lokalId", "postnr", "navn"])
     p = env.pipeline()

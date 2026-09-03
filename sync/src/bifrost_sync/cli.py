@@ -205,7 +205,7 @@ def _reconcile(cfg: Config, floors: Floors, args: argparse.Namespace, status: St
     print(f"[i] planning {len(ALL_ENTITIES)} entities against committed cursors...")
     listings = _list_catalog(session)
     deltas = _list_deltas(listings)
-    # a table whose last load legitimately staged nothing is absent by design, not a lost load
+    # a zero-row load creates no table: absent by design, not a lost load
     empty = asyncio.run(_empty_staged(cfg.dsn)) - {
         t for t, n in staged_rows(pipeline).items() if n == 0
     }

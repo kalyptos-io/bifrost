@@ -70,7 +70,6 @@ def entity_resource(spec: EntitySpec, rows: Iterable[dict], new_cursor: int):
         for row in rows:
             n += 1
             yield row
-        # a zero-row load creates no table; the emptiness check must not read that as a lost load
         state["rows"] = n
 
     return resource()

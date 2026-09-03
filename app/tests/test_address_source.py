@@ -622,8 +622,7 @@ async def test_streets_by_names_batches_and_maps(geo_source):
 
 @_needs_db
 async def test_create_pool_refuses_a_backend_without_the_generation_row():
-    # every serving connection proves its own backend replayed the generation: `-r` load-balances
-    # per connection, so a lagging standby would otherwise serve existing-but-empty tables
+    # -r load-balances per connection, so a lagging standby would serve empty tables unchecked
     from bifrost.arms.repository import _ConnParams, _create_pool
     from bifrost.db import generations
     from bifrost.db.shape import build_fingerprint
