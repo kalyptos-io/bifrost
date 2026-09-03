@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS admin_area (
 );
 
 -- matriklen: one row per jordstykke (parcel) - the footprint a resolved address projects to
--- (/resolve target=matrikel) and is searched by BFE/ejerlavskode or betegnelse (/search target=matrikel).
+-- (/resolve project=ejendom) and is searched by BFE/ejerlavskode or betegnelse (/search target=ejendom).
 -- geometry is geojson text, epsg:25832; fetched by the jordstykke PK, betegnelse via a trigram KNN.
 CREATE TABLE IF NOT EXISTS matrikel (
     jordstykke         text PRIMARY KEY,          -- mat jordstykke id_lokalId (one parcel)

@@ -12,7 +12,6 @@
 train/data
 !train/data/artifacts
 train/gen
-!train/gen/registry.py
 train/eval
 train/model
 app/tests

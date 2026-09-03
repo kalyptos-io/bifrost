@@ -430,6 +430,3 @@ async def merge(
                 topk.offer(row, plan.score(row))
 
     return topk.result(k)
-
-
-# abracadabra
