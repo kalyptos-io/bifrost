@@ -257,8 +257,18 @@ def main() -> None:
     parser.add_argument("--out", default="../app/src/bifrost/db/artifacts/score_params.json")
     parser.add_argument("--no-optimize", action="store_true")
     parser.add_argument("--keep-weights", action="store_true")
+    parser.add_argument("--allow-dirty", action="store_true")
     args = parser.parse_args()
 
+    provenance = manifest(
+        files={"snapshot": args.snapshot},
+        source="synthetic fellegi-sunter calibration",
+        weights="kept" if args.keep_weights else "fitted",
+        alpha=_ALPHA,
+        thresholds=_AGREE_TAU,
+    )
+    if provenance["git_dirty"] and not args.allow_dirty:
+        raise SystemExit("[!] tree is dirty: commit first so the artifact git_sha is reproducible")
     base = json.loads(Path(args.out).read_text("utf-8"))
     eps = base["eps"]
     if not 0 < eps < 1:
@@ -280,14 +290,7 @@ def main() -> None:
             f"false-confident={report['false_confident_rate']:.1%}"
         )
 
-    provenance = manifest(
-        files={"snapshot": args.snapshot},
-        source="synthetic fellegi-sunter calibration",
-        weights="kept" if args.keep_weights else "fitted",
-        alpha=_ALPHA,
-        thresholds=_AGREE_TAU,
-        margins_fit=fit is not None,
-    )
+    provenance["margins_fit"] = fit is not None
     sidecar = Path(f"{args.snapshot}.manifest.json")
     if sidecar.is_file():
         provenance["snapshot_run"] = json.loads(sidecar.read_text("utf-8"))

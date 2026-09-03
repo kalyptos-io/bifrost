@@ -9,9 +9,9 @@ import inspect
 import json
 
 import bifrost.eval_adapter as eval_adapter
+from bifrost.arms.repository import SourceSnapshot
 from bifrost.composition import resolve_request
-from bifrost.core.merge import _recovery_fetches
-from bifrost.core.types import Axis, Belief, Capability, Grade
+from bifrost.core.types import AddressRow, Axis, Belief, Capability, Grade
 
 from . import snapshot
 
@@ -77,14 +77,33 @@ async def test_eval_adapter_resolve_call_binds() -> None:
     assert kwargs["resolution"] is _Snapshot.resolution
 
 
-async def test_snapshot_recovery_fetches_pass_a_lifecycle() -> None:
-    calls: list[tuple] = []
+_ROW = AddressRow("a1", 0, "Vestergade", "vestergade", "1", None, None, None, "8000", None, 1.0)
 
-    def recorder(*args, **kwargs) -> tuple:
-        calls.append((args, kwargs))
-        return ()
 
+class _RecordingSource:
+    """fake SourceSnapshot: serves one stream batch and an empty recovery set, keeping the calls."""
+
+    def __init__(self) -> None:
+        self.calls: dict[str, tuple] = {}
+
+    async def street_stream(self, *args, **kwargs):
+        self.calls["street_stream"] = (args, kwargs)
+        yield [_ROW]
+
+    async def by_postcodes(self, *args, **kwargs) -> list[AddressRow]:
+        self.calls["by_postcodes"] = (args, kwargs)
+        return []
+
+
+async def test_snapshot_pool_reads_through_the_engine() -> None:
     beliefs = (
+        Belief(
+            axis=Axis.STREET,
+            value="vestergade",
+            weight=1.0,
+            grade=Grade.TRIGRAM,
+            capability=Capability.SOURCE,
+        ),
         Belief(
             axis=Axis.POSTCODE,
             value="8000",
@@ -94,15 +113,12 @@ async def test_snapshot_recovery_fetches_pass_a_lifecycle() -> None:
             members=frozenset({"8000"}),
         ),
     )
-    real_fn = snapshot._recovery_fetches
-    snapshot._recovery_fetches = recorder
-    try:
-        assert await snapshot._pool(beliefs, _Source()) == []
-    finally:
-        snapshot._recovery_fetches = real_fn
+    source = _RecordingSource()
 
-    ((args, kwargs),) = calls
-    bound = inspect.signature(_recovery_fetches).bind(*args, **kwargs)
-    bound.apply_defaults()
-    lifecycle = bound.arguments["lifecycle"]
-    assert isinstance(lifecycle, tuple) and all(isinstance(v, str) for v in lifecycle)
+    assert await snapshot._pool(beliefs, source) == [_ROW]  # the pool is what the engine touched
+
+    assert set(source.calls) == {"street_stream", "by_postcodes"}
+    for name, (args, kwargs) in source.calls.items():
+        real = inspect.signature(getattr(SourceSnapshot, name))
+        real.bind(None, *args, **kwargs)  # the proxy still speaks the real source's signature
+    assert source.calls["street_stream"][1].get("collapse_units", False) is False
