@@ -135,6 +135,10 @@ async def ready(request: Request) -> dict[str, str]:
     return {"status": "ready"}
 
 
+class _LeaderGone(Exception):
+    """singleflight leader cancelled before producing; the waiters recompute."""
+
+
 async def _cached(
     rt: _Runtime,
     key: str,
@@ -146,23 +150,30 @@ async def _cached(
     cache, inflight = rt.cache, rt.inflight
     if cache and not known_miss and (hit := await cache.get(key)) is not None:
         return hit
-    if (fut := inflight.get(key)) is not None:
+    while (fut := inflight.get(key)) is not None:
         # concurrent miss: shield keeps a cancelled follower from cancelling the shared future
-        return await asyncio.shield(fut)
+        try:
+            return await asyncio.shield(fut)
+        except _LeaderGone:
+            continue  # leader's own request went away; the first waiter back here takes over
     inflight[key] = fut = asyncio.get_running_loop().create_future()
     try:
         resolution = await factory()
-    except BaseException as exc:  # catch-all so even a cancelled leader still unblocks waiters
+    except asyncio.CancelledError:
+        fut.set_exception(_LeaderGone())
+        fut.exception()
+        raise
+    except BaseException as exc:
         fut.set_exception(exc)
         fut.exception()  # retrieved so a waiter-less failure doesn't warn
         raise
     else:
-        if cache:
-            await cache.set(key, resolution)
         fut.set_result(resolution)
-        return resolution
     finally:
         del inflight[key]
+    if cache:
+        await cache.set(key, resolution)  # after the handoff: a cancel here must not strand waiters
+    return resolution
 
 
 def _canon_lifecycle(values: list[str]) -> tuple[str, ...]:
