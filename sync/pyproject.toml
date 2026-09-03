@@ -5,7 +5,7 @@ description = "Bifrost live sync: datafordeler fetch -> dlt staging -> generatio
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "bifrost",                     # shared: normalizer, schema.sql, generations, column tuples
-    "dlt[postgres]>=1.28.2",        # staging merges; 1.27.x yanked for a merge data-loss bug
+    "dlt[postgres]>=1.30.0",        # staging merges; 1.27.x yanked for a merge data-loss bug
     "asyncpg>=0.31",               # reuses the asyncpg-typed bifrost.db.generations
     "psycopg2-binary>=2.9",        # sync advisory lock + status: one blocking conn spans the run
     "shapely>=2.0",                # snapshot-time point-in-polygon district stamping
