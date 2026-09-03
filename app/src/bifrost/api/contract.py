@@ -195,7 +195,7 @@ class Geometry(BaseModel):
 
 class Meta(BaseModel):
     score: float
-    confidence: str  # always A, B or C
+    confidence: Confidence
     uuid: str | None = None  # the dar id; opt-in only
 
 
@@ -230,7 +230,7 @@ class Ejendom(BaseModel):
 
 
 class Match(BaseModel):
-    kind: str  # resolved depth: address|street|postcode|city|<dagi area>|ejendom|stednavne
+    kind: FeatureKind  # resolved depth
     result: str
     lifecycle: str  # presented designation lifecycle: alias -> its lifecycle, else the entity's
     components: dict[str, str]

@@ -118,7 +118,7 @@ that something went wrong.
   response tells you about the truncation.
 - `components`: only the pinnable keys, each value at most 128 characters.
 - `/resolve` results: `limit`, `1..20`, default 5, and at most 5000 summed across a batch.
-- `/search` results: `limit`, `1..100`, default 5, and at most 1000 summed across a batch.
+- `/search` results: `limit`, `1..100`, default 5, and at most 5000 summed across a batch.
 - Property children: at most 1000 refs, with `relations.children.complete` reporting truncation.
 - Deadline: 30 seconds per request.
 - Rate limiting: none.
