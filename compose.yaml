@@ -121,7 +121,7 @@ services:
   # response cache (redis protocol); the app reads it via BIFROST_CACHE_URL.
   dragonfly:
     <<: *hardening
-    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.39.0@sha256:0fa01a2b929e704c7a9300d23e7f52002ebd39e90996fb8bb63826aed92fa06f
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.40.2@sha256:18afa43e911f1dff18c7d1eb452361876d9702bb1cdff5c5d75c69617a4065c9
     command: ["--cache_mode", "--proactor_threads=2"]
     cap_add: [CHOWN, FOWNER, SETGID, SETUID, DAC_OVERRIDE]  # root entrypoint drops privs via setpriv
     ports:
