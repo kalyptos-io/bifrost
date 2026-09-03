@@ -560,20 +560,26 @@ async def test_by_postcodes_filters_to_the_husnr_match(source):
 
 _GEO_A = '{"type": "LineString", "coordinates": [[0.0, 0.0], [1.0, 1.0]]}'
 _GEO_B = '{"type": "LineString", "coordinates": [[9.0, 9.0], [8.0, 8.0]]}'
+_GEO_C = '{"type": "LineString", "coordinates": [[5.0, 5.0], [6.0, 6.0]]}'
 
 
 @pytest.fixture
 async def geo_source():
     async def seed(conn):
         # one name-collapsed street_id "Hovedgaden" -> two distinct physical roads; v2 itself spans
-        # two postcodes (the grain the navngivenvej key fixes: one road, one feature)
+        # two postcodes (the grain the navngivenvej key fixes: one road, one feature). v0 is a
+        # retired road sharing v1's postcode with a lower id: current reads must never pick it
         await conn.copy_records_to_table(
             "street_dim", records=[(0, "Hovedgaden", "hovedgaden")], columns=STREET_DIM_COLUMNS[:-1]
         )
         await conn.copy_records_to_table(
             "road",
-            records=[("v1", 0, ["6900"], _GEO_A), ("v2", 0, ["8000", "8260"], _GEO_B)],
-            columns=ROAD_COLUMNS[:-1],
+            records=[
+                ("v0", 0, ["6900"], _GEO_C, "retired"),
+                ("v1", 0, ["6900"], _GEO_A, "current"),
+                ("v2", 0, ["8000", "8260"], _GEO_B, "current"),
+            ],
+            columns=ROAD_COLUMNS,
         )
 
     src, pool, schema = await _make_source(seed)

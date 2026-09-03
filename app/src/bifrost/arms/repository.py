@@ -571,8 +571,13 @@ class SourceSnapshot:
             s = ranked.get(name)
             if s is None:
                 continue
-            sroads = roads.get(s.street_id, ())
-            hits = [r for r in sroads if pin is None or set(r["postcodes"]) & pin]
+            # same road-lifecycle rule as street_features: a retired road never backs a projection
+            hits = [
+                r
+                for r in roads.get(s.street_id, ())
+                if (s.alias_lifecycle is not None or r["lifecycle"] in CURRENT_LIFECYCLE)
+                and (pin is None or set(r["postcodes"]) & pin)
+            ]
             if hits:
                 best = min(hits, key=lambda r: r["navngivenvej_id"])  # sim const per street
                 out[name] = RoadGeom(s.street, s.sim, best["geometry"], tuple(best["postcodes"]))

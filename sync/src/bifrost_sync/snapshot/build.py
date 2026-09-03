@@ -257,8 +257,8 @@ async def _gc(writer: asyncpg.Connection) -> None:
         schemas, await generations.all_generations(writer), now, held=held
     ):
         print(f"[-] gc dropping old generation {target}")
-        await writer.execute(f'DROP SCHEMA IF EXISTS "{target}" CASCADE')
         await writer.execute("DELETE FROM public.generations WHERE schema_name = $1", target)
+        await writer.execute(f'DROP SCHEMA IF EXISTS "{target}" CASCADE')
     await generations.prune_leases(writer)  # dead-holder leases grow unbounded otherwise
 
 
