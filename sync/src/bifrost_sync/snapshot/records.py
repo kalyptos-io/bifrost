@@ -60,7 +60,7 @@ class StreetIds:
         return i
 
     def dim_records(self) -> list[tuple[int, str, str, str]]:
-        return [tuple(d) for d in self._dim]  # type: ignore[misc]
+        return [tuple(d) for d in self._dim]
 
     def lookup(self, folded: str) -> int | None:
         return self._ids.get(folded)  # no minting: geom for an address-less street is an orphan

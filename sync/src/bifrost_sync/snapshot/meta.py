@@ -8,6 +8,7 @@ needed - both a cursor move and a contract change trigger one.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import asyncpg
 
@@ -43,7 +44,7 @@ async def stamp_watermark(
     )
 
 
-async def read_watermark(conn: asyncpg.Connection, *, staging: str = STAGING) -> dict[str, object]:
+async def read_watermark(conn: asyncpg.Connection, *, staging: str = STAGING) -> dict[str, Any]:
     if not await conn.fetchval("SELECT to_regclass($1)", f"{staging}.sync_meta"):
         return {}
     value = await conn.fetchval(

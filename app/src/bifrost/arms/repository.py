@@ -20,7 +20,7 @@ import logging
 import os
 import random
 import socket
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from datetime import datetime
 from typing import NamedTuple
 
@@ -359,7 +359,7 @@ class SourceSnapshot:
         collapse_units: bool = False,
         postcodes: set[str] | None = None,
         lifecycle: tuple[str, ...] = CURRENT_LIFECYCLE,
-    ) -> AsyncIterator[list[AddressRow]]:
+    ) -> AsyncGenerator[list[AddressRow]]:
         srv = self._serving
         combos = srv.index.knn(folded_q, cap=cap, postcodes=postcodes, lifecycle=lifecycle)
         if not combos:
@@ -725,8 +725,10 @@ class PostgresAddressSource:
         s = self._serving
         await self._beat(s.generation)
         gen = await generations.select_current(s.pool)
-        if self._params is None or not generations.should_swap(
-            s.generation, s.contract_version, gen
+        if (
+            gen is None
+            or self._params is None
+            or not generations.should_swap(s.generation, s.contract_version, gen)
         ):
             return
         new_pool = await _create_pool(self._params, gen.schema_name)

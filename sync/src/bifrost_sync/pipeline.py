@@ -15,14 +15,16 @@ from collections.abc import Iterable, Iterator
 from typing import NamedTuple
 
 import dlt
+from dlt.common.pipeline import TRefreshMode
+from dlt.common.schema.typing import TColumnSchema, TDataType, TSchemaContractDict
 
 from .config import Config
 from .registers import DAGI, DAR, DS, EBR, MAT, EntitySpec, Kind, contract_hash
 
 _SOURCE_NAME = {DAR: "dar", DAGI: "dagi", MAT: "mat", DS: "ds", EBR: "ebr"}
-_CONTRACT = {"tables": "evolve", "columns": "freeze", "data_type": "freeze"}
+_CONTRACT: TSchemaContractDict = {"tables": "evolve", "columns": "freeze", "data_type": "freeze"}
 # geojson/point-text/timestamp arrive pre-serialized from extract - pin text so dlt never re-types
-_KIND_TYPE = {
+_KIND_TYPE: dict[Kind, TDataType] = {
     Kind.TEXT: "text",
     Kind.DOUBLE: "double",
     Kind.GEOJSON: "text",
@@ -37,16 +39,17 @@ class Load(NamedTuple):
     cursor: int  # per-entity generationNumber to commit with this load
 
 
-def hints(spec: EntitySpec) -> dict[str, dict]:
+def hints(spec: EntitySpec) -> dict[str, TColumnSchema]:
     """dlt column hints from the spec's Kinds; the tombstone signal is a bool hard_delete column."""
-    cols: dict[str, dict] = {}
+    cols: dict[str, TColumnSchema] = {}
     for c in spec.columns:
         if c.kind is Kind.POINT_XY:
             kx, ky = c.name
             cols[kx] = {"data_type": "double"}
             cols[ky] = {"data_type": "double"}
         else:
-            cols[c.name] = {"data_type": _KIND_TYPE[c.kind]}  # type: ignore[index]
+            assert not isinstance(c.name, tuple)  # only POINT_XY carries a 2-tuple name
+            cols[c.name] = {"data_type": _KIND_TYPE[c.kind]}
     cols["_deleted"] = {"data_type": "bool", "hard_delete": True}
     return cols
 
@@ -103,12 +106,19 @@ def _source(register: str, loads: list[Load]):
     return src()
 
 
-def run_loads(pipeline: dlt.Pipeline, loads: Iterable[Load], *, refresh: str | None = None) -> list:
+def run_loads(
+    pipeline: dlt.Pipeline, loads: Iterable[Load], *, refresh: TRefreshMode | None = None
+) -> list:
     # refresh="drop_resources" (baseline): drop tables + state so a full total repopulates clean
     infos = []
     for register, group in _by_register(loads).items():
         infos.append(
-            pipeline.run(_source(register, group), loader_file_format="csv", refresh=refresh)
+            pipeline.run(
+                _source(register, group),
+                loader_file_format="csv",
+                # dlt declares refresh as TRefreshMode but defaults it to None
+                refresh=refresh,  # ty: ignore[invalid-argument-type]
+            )
         )
     return infos
 

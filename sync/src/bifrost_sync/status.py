@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 import psycopg2
 from bifrost.db.contracts import CURRENT
@@ -145,7 +146,7 @@ def _overdue(started_at: object, deadline: float) -> bool:
         return False
 
 
-def render(record: dict[str, object] | None, *, deadline: float = RUN_DEADLINE) -> str:
+def render(record: dict[str, Any] | None, *, deadline: float = RUN_DEADLINE) -> str:
     if not record:
         return "[!] no sync status recorded yet"
     state = str(record.get("state"))
@@ -157,8 +158,8 @@ def render(record: dict[str, object] | None, *, deadline: float = RUN_DEADLINE) 
         f"[i] phase: {record.get('phase')}",
         f"[i] started: {record.get('started_at')}",
         f"[i] completed: {record.get('completed_at') or '-'}",
-        f"[i] desired: contract v{desired.get('contract_version')} "  # type: ignore[union-attr]
-        f"fingerprint {str(desired.get('fingerprint'))[:12]}",  # type: ignore[union-attr]
+        f"[i] desired: contract v{desired.get('contract_version')} "
+        f"fingerprint {str(desired.get('fingerprint'))[:12]}",
     ]
     if record.get("error"):
         lines.append(f"[-] error: {record['error']}")

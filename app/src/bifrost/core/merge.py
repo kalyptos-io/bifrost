@@ -10,7 +10,7 @@ so an absent unit never penalizes a correct building.
 import asyncio
 import heapq
 import math
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import aclosing
 from dataclasses import dataclass
 from functools import lru_cache
@@ -264,11 +264,11 @@ def _to_candidate(row: AddressRow, score: float) -> Candidate:
     )
 
 
-def _source_postcode_belief(by_axis: dict[Axis, Belief]) -> Belief | None:
-    """the postcode belief when it may source candidates (SOURCE + members), else None."""
+def _source_postcodes(by_axis: dict[Axis, Belief]) -> set[str] | None:
+    """the believed SOURCE postcode set candidates may be sourced from, else None to scan all."""
     pc = by_axis.get(Axis.POSTCODE)
     if pc is not None and pc.capability is Capability.SOURCE and pc.members:
-        return pc
+        return set(pc.members)
     return None
 
 
@@ -279,12 +279,12 @@ def _husnr_probe(
     lifecycle: tuple[str, ...],
 ):
     """the SOURCE-postcode recovery coroutine (husnr-filtered when present), or None."""
-    postcode = _source_postcode_belief(by_axis)
-    if postcode is None:
+    postcodes = _source_postcodes(by_axis)
+    if postcodes is None:
         return None
     husnr = by_axis.get(Axis.HOUSE_NUMBER)
     return source.by_postcodes(
-        set(postcode.members),
+        postcodes,
         folded_q,
         husnr.value if husnr else None,
         cap=POSTCODE_CAP,
@@ -305,26 +305,20 @@ def _recovery_fetches(
         fetches.append(probe)
 
     has_strong = any(b.capability is Capability.SOURCE for b in by_axis.values())
-    locality = [b for b in by_axis.values() if b.grade is Grade.LOCALITY and b.members]
+    locality = [b.members for b in by_axis.values() if b.grade is Grade.LOCALITY and b.members]
     # lone city / sub-locality query: its postcode set IS the source (don't double-source otherwise)
     if not has_strong and locality:
         husnr = by_axis.get(Axis.HOUSE_NUMBER)
         hn = husnr.value if husnr else None
-        codes = set().union(*(b.members for b in locality))
+        codes = set().union(*locality)
         # bare locality scores every row alike; only street/husnr recovery needs the full cap
         cap = LOCALITY_CAP if folded_q is None and hn is None else POSTCODE_CAP
         fetches.append(source.by_postcodes(codes, folded_q, hn, cap=cap, lifecycle=lifecycle))
     return fetches
 
 
-def _source_postcodes(by_axis: dict[Axis, Belief]) -> set[str] | None:
-    """the believed SOURCE postcode set the street stream confines to, or None to scan all."""
-    pc = _source_postcode_belief(by_axis)
-    return set(pc.members) if pc is not None else None
-
-
 async def _drain_stream(
-    stream: AsyncIterator[list[AddressRow]],
+    stream: AsyncGenerator[list[AddressRow]],
     topk: _TopK,
     plan: _ScorePlan,
     k: int,
@@ -393,7 +387,7 @@ async def merge(
         # collapse: no unit belief => an access addr's floor/door rows score alike
         settled, max_sim = await _drain_stream(
             source.street_stream(
-                folded_q,
+                street.value,
                 cap=STREET_STREAM_CAP,
                 batch=STREET_BATCH,
                 collapse_units=not unit,
@@ -408,7 +402,7 @@ async def merge(
         if pcs is not None and max_sim < STREET_PRESENT:
             settled, _ = await _drain_stream(
                 source.street_stream(
-                    folded_q,
+                    street.value,
                     cap=STREET_STREAM_CAP,
                     batch=STREET_BATCH,
                     collapse_units=not unit,
@@ -433,3 +427,6 @@ async def merge(
                 topk.offer(row, plan.score(row))
 
     return topk.result(k)
+
+
+# abracadabra

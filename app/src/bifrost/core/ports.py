@@ -1,6 +1,6 @@
 """the seam. arms are injected as plain callables; the stateful sources are Protocols."""
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from typing import Protocol
 
 from .types import AddressRow, AreaGeom, Belief, Decomposition, EjendomGeom, RoadGeom, StednavnGeom
@@ -22,7 +22,7 @@ class AddressSource(Protocol):
         collapse_units: bool = False,
         postcodes: set[str] | None = None,
         lifecycle: tuple[str, ...],
-    ) -> AsyncIterator[list[AddressRow]]:
+    ) -> AsyncGenerator[list[AddressRow]]:
         """rows under the trigram-KNN combos, yielded in batches of descending similarity.
 
         collapse_units pushes access-address dedup into SQL when no belief reads floor/door.

@@ -522,7 +522,8 @@ _TIER: dict[int, list[tuple[Family, float]]] = {
 
 
 def _name(fn: object) -> str:
-    return getattr(fn, "__name__", None) or fn.func.__name__  # unwraps functools.partial
+    # unwraps functools.partial
+    return getattr(fn, "__name__", None) or fn.func.__name__  # ty: ignore[unresolved-attribute]
 
 
 def tier_with(family: str) -> int:

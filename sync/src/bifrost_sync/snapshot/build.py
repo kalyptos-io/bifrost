@@ -245,7 +245,7 @@ async def _gather_coverage(writer: asyncpg.Connection) -> dict[str, tuple[int, i
 
 async def _prior_generation(conn: asyncpg.Connection) -> generations.Generation | None:
     gens = await generations.all_generations(conn)
-    return max(gens, key=lambda g: g.seeded_at, default=None)
+    return max(gens, key=lambda g: g.seeded_at) if gens else None
 
 
 async def _gc(writer: asyncpg.Connection) -> None:

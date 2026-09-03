@@ -41,7 +41,7 @@ async def _pool(beliefs: tuple[Belief, ...], source: SourceSnapshot) -> list[Add
     folded_query = street.value if street else None
     if street is not None:
         async for batch in source.street_stream(
-            folded_query, cap=STREET_STREAM_CAP, batch=STREET_BATCH
+            street.value, cap=STREET_STREAM_CAP, batch=STREET_BATCH
         ):
             for row in batch:
                 rows.setdefault(row.address_id, row)
@@ -159,13 +159,15 @@ async def _run(
     completed = 0
     try:
         async with source.snapshot() as snap:
+            resolution = snap.resolution
+            assert resolution is not None  # source built with a resolution_factory above
             generation = snap.generation
             tasks = [
                 asyncio.create_task(
                     _process(
                         item,
                         snap,
-                        snap.resolution.branches,
+                        resolution.branches,
                         weights,
                         eps,
                         top_rows,

@@ -14,7 +14,7 @@ from prometheus_client import (
     generate_latest,
     multiprocess,
 )
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REQUEST_DURATION = Histogram(
     "http_request_duration_seconds",
@@ -37,7 +37,7 @@ class PrometheusMiddleware:
         status = 500  # default covers an exception before response.start
         start = perf_counter()
 
-        async def capture(message: dict) -> None:
+        async def capture(message: Message) -> None:
             nonlocal status
             if message["type"] == "http.response.start":
                 status = message["status"]

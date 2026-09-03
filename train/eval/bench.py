@@ -14,6 +14,7 @@ import urllib.request
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 from .provenance import manifest
 from .run import _CONFIDENT, _HARD, read_jsonl
@@ -183,7 +184,7 @@ def _mutation_breakdown(rows: list[dict]) -> dict:
     return {name: _accuracy(group) for name, group in sorted(groups.items())}
 
 
-def _summary(rows: list[dict], seconds: float) -> dict:
+def _summary(rows: list[dict], seconds: float) -> dict[str, Any]:
     completed = [row for row in rows if row["status"] == 200]
     shed = [row for row in rows if row["shed"]]
     tiers: dict[int, list[dict]] = defaultdict(list)
@@ -335,7 +336,7 @@ def main() -> None:
     runs, rss = [], _worker_rss(args.rss_match)
     for concurrency in schedule:
         rows, seconds = _pass(url, items, concurrency, args.timeout)
-        summary = _summary(rows, seconds) | {"concurrency": concurrency}
+        summary: dict[str, Any] = _summary(rows, seconds) | {"concurrency": concurrency}
         _require_success(f"concurrency {concurrency}", summary, allow_shedding=True)
         _write(out_dir / f"results-c{concurrency}.jsonl", rows)
         runs.append(summary)

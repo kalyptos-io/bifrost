@@ -16,7 +16,10 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 quote-style = "double"
 
 [dependency-groups]
-dev = ["pytest>=9", "pytest-asyncio>=1.4", "ruff>=0.15"]
+dev = ["pytest>=9", "pytest-asyncio>=1.4", "ruff>=0.15", "ty>=0.0.78"]
+
+[tool.ty.src]
+exclude = ["**/tests/", "**/test_*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["app/tests", "train", "sync/tests"]

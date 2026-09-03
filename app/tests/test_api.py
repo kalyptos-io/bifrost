@@ -88,7 +88,7 @@ class _StubSnapshot:
     def __init__(self, generation, seeded_at):
         self.generation = generation  # endpoints read snap.generation (cache namespace)
         self.seeded_at = seeded_at  # stamped onto the response as the freshness header
-        self.resolution = None  # resolve_request is stubbed, so branches/merge ctx go unused
+        self.resolution = object()  # sentinel: resolve_request is stubbed, so it goes unread
 
     async def __aenter__(self):
         return self

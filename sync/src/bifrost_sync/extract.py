@@ -32,7 +32,8 @@ def to_float(v: object) -> float | None:
     if v is None or v == "":
         return None
     try:
-        return float(v)  # type: ignore[arg-type]
+        # float() is annotated narrower than it coerces; the except is the real gate
+        return float(v)  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return None
 
@@ -183,20 +184,22 @@ class SniffState:
     a sniffer inspects values, so it waits for a row that actually carries the geometry/point."""
 
     def __init__(self, spec: EntitySpec):
-        self._sniffers = {i: c.src for i, c in enumerate(spec.columns) if callable(c.src)}
+        self._sniffers = {
+            i: c.src for i, c in enumerate(spec.columns) if not isinstance(c.src, str | tuple)
+        }
         self._resolved: dict[int, str] = {}
 
     def resolve(self, index: int, row: dict) -> str | None:
         cached = self._resolved.get(index)
         if cached is not None:
             return cached
-        col = self._sniffers[index](row)  # type: ignore[operator]
+        col = self._sniffers[index](row)
         if col is not None:
             self._resolved[index] = col
         return col
 
 
-def _raw(row: dict, col: Column, sniffed: SniffState, index: int) -> object:
+def _raw(row: dict, col: Column, sniffed: SniffState, index: int) -> str | None:
     src = col.src
     if callable(src):
         resolved = sniffed.resolve(index, row)
@@ -206,10 +209,10 @@ def _raw(row: dict, col: Column, sniffed: SniffState, index: int) -> object:
     return row.get(src)
 
 
-def _emit(out: dict, col: Column, raw: object) -> None:
+def _emit(out: dict, col: Column, raw: str | None) -> None:
     kind = col.kind
     if kind is Kind.POINT_XY:
-        xy = _wkt_xy(raw)  # type: ignore[arg-type]
+        xy = _wkt_xy(raw)
         kx, ky = col.name  # a 2-tuple for POINT_XY
         out[kx], out[ky] = (xy[0], xy[1]) if xy else (None, None)
         return
@@ -218,9 +221,9 @@ def _emit(out: dict, col: Column, raw: object) -> None:
     elif kind is Kind.DOUBLE:
         value = to_float(raw)
     elif kind is Kind.GEOJSON:
-        value = _geojson_text(raw)  # type: ignore[arg-type]
+        value = _geojson_text(raw)
     elif kind is Kind.POINT_TEXT:
-        value = _point_text(raw)  # type: ignore[arg-type]
+        value = _point_text(raw)
     elif kind is Kind.TIMESTAMP:
         value = to_utc_iso(raw)
     else:  # pragma: no cover - exhaustive over Kind

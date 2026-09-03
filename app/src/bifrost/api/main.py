@@ -200,6 +200,8 @@ async def _resolve_cached(
 ) -> Resolution:
     # the entry holds the full ranking, so every limit under TOP_K shares one
     key = _cache_key(gen, query, components, project, lifecycle, rank_width(limit))
+    resolution = source.resolution
+    assert resolution is not None  # every /resolve source is built with a resolution_factory
     return await _cached(
         rt,
         key,
@@ -211,7 +213,7 @@ async def _resolve_cached(
             limit=limit,
             source=source,
             geo_source=source,
-            resolution=source.resolution,
+            resolution=resolution,
         ),
         known_miss=known_miss,
     )
@@ -372,7 +374,7 @@ async def _search_batch(
 
 # response_model=None returns _JSONResponse straight (no jsonable_encoder walk); responses= keeps
 # the 200 schema documented
-_RESPONSES = {
+_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {
         "model": AddressResult | list[AddressResult | AddressError],
         "headers": {
@@ -447,6 +449,7 @@ async def search_endpoint(req: SearchRequest, request: Request) -> Response:
         if isinstance(req.query, list):
             results = await _search_batch(gen, req.query, snap, rt, geometry=req.geometry)
             return _JSONResponse(results, headers=headers)
+        assert req.target is not None  # the single-query validator rejects a missing target
         resolution = await _search_cached(
             gen, req.query, req.target, req.limit, _canon_lifecycle(req.lifecycle), snap, rt
         )

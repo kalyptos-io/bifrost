@@ -109,7 +109,9 @@ class EntitySpec:
     @property
     def pk_out(self) -> str:
         # canonical staging name of the identity column (dlt merge key + tombstone key)
-        return next(c.name for c in self.columns if c.src == self.pk)  # type: ignore[return-value]
+        name = next(c.name for c in self.columns if c.src == self.pk)
+        assert not isinstance(name, tuple)  # only POINT_XY carries a 2-tuple name
+        return name
 
     @property
     def is_hist(self) -> bool:
@@ -485,11 +487,11 @@ ALL_ENTITIES: tuple[EntitySpec, ...] = (*_DAR, *_DAR_HIST, *_DAGI, *_MAT, *_DS, 
 
 def _src_contract(src: str | tuple[str, ...] | Sniffer) -> object:
     # a sniffer's identity is its qualified name (module-level fn, stable across processes)
-    if callable(src):
-        return {"sniffer": src.__qualname__}
+    if isinstance(src, str):
+        return {"header": src}
     if isinstance(src, tuple):
         return {"variants": list(src)}
-    return {"header": src}
+    return {"sniffer": src.__qualname__}  # ty: ignore[unresolved-attribute]
 
 
 def _column_contract(c: Column) -> dict:

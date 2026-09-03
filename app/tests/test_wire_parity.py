@@ -15,7 +15,7 @@ _SNAPSHOTS = Path(__file__).parent / "wire_snapshots"
 class _StubSnap:
     generation = "g0"  # endpoints read snap.generation to namespace cache keys
     seeded_at = datetime(2026, 8, 12, 3, 14, 22, tzinfo=UTC)  # freshness header; body unaffected
-    resolution = None  # resolve_request is stubbed, so branches/merge ctx go unused
+    resolution = object()  # sentinel: resolve_request is stubbed, so it goes unread
 
     async def __aenter__(self):
         return self

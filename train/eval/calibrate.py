@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from typing import Any
 
 from bifrost.core.types import TOP_K
 
@@ -65,7 +66,9 @@ def _accumulate(aggregate, side: str, axes: dict) -> None:
 
 
 def _mu(records) -> tuple[dict[str, tuple[float, float]], dict[str, tuple[float, float, float]]]:
-    aggregate = {axis: {"m": [0.0, 0.0, 0], "u": [0.0, 0.0, 0], "grade": ""} for axis in _AXES}
+    aggregate: dict[str, dict[str, Any]] = {
+        axis: {"m": [0.0, 0.0, 0], "u": [0.0, 0.0, 0], "grade": ""} for axis in _AXES
+    }
     for record in records:
         for row in record["rows"]:
             if row["is_match"]:

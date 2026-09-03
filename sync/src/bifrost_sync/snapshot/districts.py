@@ -137,6 +137,7 @@ def _stamp_shard(
 ) -> list[tuple[str, str | None, str | None, str | None]]:
     """cpu-pure pool worker: reads the fork-inherited trees, touches no fd/loop/asyncpg."""
     out: dict[str, list[str | None]] = {}
+    assert _WORKER_TREES is not None  # the pool initializer sets the trees before any worker call
     stamp_chunk(_WORKER_TREES, ids, xs, ys, out)
     return [(hid, rec[0], rec[1], rec[2]) for hid, rec in out.items()]
 

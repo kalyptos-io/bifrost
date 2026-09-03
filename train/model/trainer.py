@@ -107,8 +107,10 @@ class SegModel(nn.Module):
 
     def _masked(self):
         # -1e4 (not -inf) keeps autograd nan-free; illegal paths still vanish in the sum
-        start = self.start_transitions.masked_fill(~self._start_ok, -1e4)
-        trans = self.transitions.masked_fill(~self._trans_ok, -1e4)
+        # torch widens registered buffers to Tensor | Module through Module.__getattr__
+        start_ok, trans_ok = ~self._start_ok, ~self._trans_ok  # ty: ignore[unsupported-operator]
+        start = self.start_transitions.masked_fill(start_ok, -1e4)
+        trans = self.transitions.masked_fill(trans_ok, -1e4)
         return start, trans, self.end_transitions
 
     def _path_score(self, emissions, tags, mask, start, trans, end):

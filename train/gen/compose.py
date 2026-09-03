@@ -46,7 +46,7 @@ P_SUBLOC = 0.5
 
 
 # delimiter inserted *before* a component, keyed by its label
-def _delim(right: str, rng: random.Random) -> str:
+def _delim(right: str | None, rng: random.Random) -> str:
     if right == "house_letter":
         return "" if rng.random() < 0.88 else " "
     if right == "postcode":

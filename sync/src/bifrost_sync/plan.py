@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import Any
 
 from bifrost.db.generations import Generation
 
@@ -139,14 +140,14 @@ def _live_state(
     return {t: (g, contracts.get(t)) for t, g in cursors.items()}
 
 
-def _watermark_state(watermark: Mapping[str, object]) -> dict[str, tuple[int, str | None]]:
+def _watermark_state(watermark: Mapping[str, Any]) -> dict[str, tuple[int, str | None]]:
     return {t: (v["gen"], v.get("contract")) for t, v in watermark.items()}
 
 
 def needs_snapshot(
     cursors: dict[str, int],
     contracts: Mapping[str, str],
-    watermark: Mapping[str, object],
+    watermark: Mapping[str, Any],
     current_generation: Generation | None,
     fingerprint: str,
 ) -> bool:

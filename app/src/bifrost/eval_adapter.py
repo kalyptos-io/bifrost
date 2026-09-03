@@ -65,6 +65,7 @@ async def _resolve_one(query: str):
     # pin one snapshot per query so reads share a generation (a one-shot harness never cuts over)
     assert _source is not None
     async with _source.snapshot() as snap:
+        assert snap.resolution is not None
         return await resolve_request(
             query,
             None,

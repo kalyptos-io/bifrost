@@ -34,6 +34,7 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run ty check
       - run: uv run pytest
         env:
           BIFROST_DATABASE_DSN: postgresql://bifrost:bifrost@localhost:5432/bifrost
