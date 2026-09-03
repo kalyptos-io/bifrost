@@ -86,6 +86,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 {{- end -}}
 
+{{/* sync is its own release unit: it owns an account rather than referencing the app plane's */}}
+{{- define "bifrost.sync.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- printf "%s-sync" (include "bifrost.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "bifrost.secretName" -}}
 {{- if .Values.database.existingSecret -}}
 {{- .Values.database.existingSecret -}}

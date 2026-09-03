@@ -28,7 +28,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "bifrost.serviceAccountName" . }}
+      serviceAccountName: {{ include "bifrost.sync.serviceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
