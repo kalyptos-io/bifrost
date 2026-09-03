@@ -18,11 +18,11 @@ from dataclasses import dataclass
 from urllib.parse import quote, quote_plus
 
 from bifrost.arms.normalize import (
-    _MARKER,
-    _PUNCT,
-    _repair_mojibake,
-    _url_decode,
+    MARKER,
+    PUNCT,
     fold,
+    repair_mojibake,
+    url_decode,
 )
 
 from .compose import Segment, render
@@ -76,7 +76,7 @@ def _strip_recipient_segs(segs: list[Segment]) -> list[Segment]:
     if len(blocks) < 2:
         return segs  # no comma -> single block (kept, or marker-only -> never strip to empty)
     kept = [
-        b for b in blocks if any(c.isdigit() for c in render(b)) or not _MARKER.search(render(b))
+        b for b in blocks if any(c.isdigit() for c in render(b)) or not MARKER.search(render(b))
     ]
     if not kept:
         return segs  # never strip to empty
@@ -119,13 +119,13 @@ def _strip_pad_segs(segs: list[Segment]) -> list[Segment]:
 
 
 def normalize_segs(segs: list[Segment]) -> list[Segment]:
-    segs = _map_text(segs, _url_decode)
+    segs = _map_text(segs, url_decode)
     surface = render(segs)
-    if _repair_mojibake(surface) != surface:  # all-or-nothing: per-seg iff whole repairs
-        segs = _map_text(segs, _repair_mojibake)
+    if repair_mojibake(surface) != surface:  # all-or-nothing: per-seg iff whole repairs
+        segs = _map_text(segs, repair_mojibake)
     segs = _map_text(segs, str.lower)
     segs = _strip_recipient_segs(segs)
-    segs = _map_text(segs, lambda t: t.translate(_PUNCT))
+    segs = _map_text(segs, lambda t: t.translate(PUNCT))
     segs = _map_text(segs, fold)
     segs = _collapse_ws_segs(segs)
     segs = _strip_pad_segs(segs)

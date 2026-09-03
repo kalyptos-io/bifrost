@@ -87,7 +87,7 @@ def _husnr_grade(q: str, r: str) -> float:
     return 1 - _levenshtein(q, r) / len(q)
 
 
-def _belief_value(b: Belief, row: AddressRow) -> float:
+def belief_value(b: Belief, row: AddressRow) -> float:
     match b.grade:
         case Grade.TRIGRAM:
             return row.street_similarity
@@ -144,7 +144,7 @@ class _ScorePlan:
                 hit = row.postcode in (b.members or frozenset())
                 total += b.weight * (_LOG_EPS1 if hit else _LOG_EPS)
             else:  # trigram/husnr/postcode: value varies per row, the log stays
-                total += b.weight * math.log(EPS + _belief_value(b, row))
+                total += b.weight * math.log(EPS + belief_value(b, row))
         return total
 
     def tau(self, s_d: float) -> float:
@@ -207,6 +207,9 @@ class _TopK:
         rank = self._rank(row, score)
         if rank > agg.rep_rank:
             agg.rep_row, agg.rep_rank = row, rank
+
+    def __len__(self) -> int:
+        return len(self._agg)
 
     def kth(self, k: int) -> float:
         if len(self._agg) < k:
@@ -376,7 +379,7 @@ async def merge(
                 max_sim = max(max_sim, row.street_similarity)
             # leader pinned: >=k husnr-matches on a street this similar => position 0 is the
             # stream's too, so recovery alone is recall-exact
-            if len(sc._agg) >= k and husnr_rows and max_sim >= SIM_GATE:
+            if len(sc) >= k and husnr_rows and max_sim >= SIM_GATE:
                 return sc.result(k)
 
     topk = _TopK(folded_q, unit=unit, prefer_bare=prefer_bare)  # lazy: the short-circuit skips it

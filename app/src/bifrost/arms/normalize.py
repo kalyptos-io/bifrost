@@ -4,7 +4,8 @@ stdlib-only leaf module (no intra-app imports) so train can depend on it cheaply
 url-decode; utf-8<-latin-1 mojibake repair; lowercase; recipient-line strip;
 `. , / -` -> space + collapse whitespace; accent-fold + digraph-fold (ae<->ae, oe<->oe, aa<->aa)
 applied to query AND registry. fold() is public: the single source of the fold constant, shared by
-train/gen so corruption and canonicalization can never drift.
+train/gen so corruption and canonicalization can never drift; MARKER, PUNCT, url_decode and
+repair_mojibake are the same seam (train/gen corrupts through them).
 """
 
 from __future__ import annotations
@@ -17,9 +18,9 @@ from urllib.parse import unquote_plus
 _DIGRAPH = str.maketrans({"æ": "ae", "ø": "oe", "å": "aa", "Æ": "Ae", "Ø": "Oe", "Å": "Aa"})
 
 # c/o + attn markers: a comma-segment carrying one is recipient noise; tail junk is segmenter's job
-_MARKER = re.compile(r"\bc/?o\b|\batt(?:n|ention)?\b|\bv/")
+MARKER = re.compile(r"\bc/?o\b|\batt(?:n|ention)?\b|\bv/")
 
-_PUNCT = str.maketrans({".": " ", ",": " ", "/": " ", "-": " "})
+PUNCT = str.maketrans({".": " ", ",": " ", "/": " ", "-": " "})
 
 # bump when fold()/normalize() output changes: the derived folded_* columns depend on it, so a bump
 # is a shape change (folds into the seed fingerprint -> reseed)
@@ -37,7 +38,7 @@ def strip_pad(s: str) -> str:
     return re.sub(r"\b0+(\d)", r"\1", s)
 
 
-def _url_decode(s: str) -> str:
+def url_decode(s: str) -> str:
     if "%" not in s and "+" not in s:  # unquote_plus is identity without % or +
         return s
     for _ in range(4):  # double-encoding (%2520) needs a second pass; cap guards pathological input
@@ -48,7 +49,7 @@ def _url_decode(s: str) -> str:
     return s
 
 
-def _repair_mojibake(s: str) -> str:
+def repair_mojibake(s: str) -> str:
     # utf-8 shown as latin-1 (Ã¸ -> ø); round-trips only on genuine mojibake, correct text raises
     try:
         return s.encode("latin-1").decode("utf-8")
@@ -58,12 +59,12 @@ def _repair_mojibake(s: str) -> str:
 
 def _strip_recipient(s: str) -> str:
     # marked seg is noise only without address signal; keep digit-bearing ones (tail -> segmenter)
-    kept = [seg for seg in s.split(",") if any(c.isdigit() for c in seg) or not _MARKER.search(seg)]
+    kept = [seg for seg in s.split(",") if any(c.isdigit() for c in seg) or not MARKER.search(seg)]
     return " ".join(kept) if kept else s  # never strip to empty
 
 
 def normalize(query: str) -> str:
-    s = _url_decode(query)
-    s = _repair_mojibake(s)  # before lowercase: lowercasing Ã->ã corrupts the byte
+    s = url_decode(query)
+    s = repair_mojibake(s)  # before lowercase: lowercasing Ã->ã corrupts the byte
     s = _strip_recipient(s.lower())
-    return strip_pad(" ".join(fold(s.translate(_PUNCT)).split()))
+    return strip_pad(" ".join(fold(s.translate(PUNCT)).split()))

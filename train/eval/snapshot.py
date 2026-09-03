@@ -14,7 +14,7 @@ from bifrost.arms.normalize import normalize
 from bifrost.arms.repository import NotSeeded, PostgresAddressSource, SourceSnapshot
 from bifrost.composition import build_resolution
 from bifrost.config import Settings
-from bifrost.core.merge import STREET_BATCH, STREET_STREAM_CAP, _belief_value, _recovery_fetches
+from bifrost.core.merge import STREET_BATCH, STREET_STREAM_CAP, _recovery_fetches, belief_value
 from bifrost.core.ports import BeliefBranch
 from bifrost.core.types import CURRENT_LIFECYCLE, AddressRow, Axis, Belief, Capability, Grade
 
@@ -60,7 +60,7 @@ def _row(row: AddressRow, beliefs: tuple[Belief, ...], target_id: str | None) ->
         "axes": {
             belief.axis.value: {
                 "grade": belief.grade.value,
-                "v": _belief_value(belief, row),
+                "v": belief_value(belief, row),
             }
             for belief in beliefs
         },

@@ -99,13 +99,13 @@ def test_confidence_dominant_exact_is_a():
 
 def test_confidence_clear_but_not_dominant_is_b():
     d = Decomposition(text="", house_number="1", postcode="1000")
-    res = select("q", d, [_cand("1", 1.0), _cand("2", 0.4)])  # margin 0.6 in [_MARGIN_B, _MARGIN_A)
+    res = select("q", d, [_cand("1", 1.0), _cand("2", 0.4)])  # margin 0.6 in [MARGIN_B, MARGIN_A)
     assert res.matches[0].confidence == Confidence.B
 
 
 def test_confidence_flat_margin_is_c():
     d = Decomposition(text="", house_number="1", postcode="1000")
-    res = select("q", d, [_cand("1", 1.0), _cand("2", 0.9)])  # margin 0.1 < _MARGIN_B
+    res = select("q", d, [_cand("1", 1.0), _cand("2", 0.9)])  # margin 0.1 < MARGIN_B
     assert res.matches[0].confidence == Confidence.C
 
 
