@@ -1,6 +1,6 @@
 Bifrost {{ .Chart.AppVersion }} deployed as {{ include "bifrost.fullname" . }}.
 
-"Be sober now - cease from your surfeit, cease to be glamored by irrational sleep!"
+Abracadabra.
 
 {{- if .Values.app.enabled }}
 {{- if not .Values.cache.url }}

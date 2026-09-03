@@ -787,6 +787,30 @@ async def test_singleflight_follower_cancel_does_not_poison_leader():
     assert "sf3" not in rt.inflight
 
 
+async def test_singleflight_leader_cancel_hands_over_to_follower():
+    cache = ResponseCache(_StubRedis(), ttl=60)
+    rt = _rt(cache)
+    calls = {"n": 0}
+    release = asyncio.Event()
+
+    async def factory():
+        calls["n"] += 1
+        await release.wait()
+        return _resolution("q")
+
+    leader = asyncio.create_task(main._cached(rt, "sf4", factory))
+    await asyncio.sleep(0)
+    follower = asyncio.create_task(main._cached(rt, "sf4", factory))
+    for _ in range(5):
+        await asyncio.sleep(0)
+    leader.cancel()
+    release.set()
+    assert await follower == _resolution("q")  # recomputes instead of inheriting the cancel
+    assert leader.cancelled()
+    assert calls["n"] == 2
+    assert "sf4" not in rt.inflight
+
+
 async def test_singleflight_failure_unblocks_waiters_and_recovers():
     cache = ResponseCache(_StubRedis(), ttl=60)
     rt = _rt(cache)

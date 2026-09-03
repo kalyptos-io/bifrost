@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from .merge import merge
 from .ports import AddressSource, BeliefBranch, Decompose, Normalize
-from .select import _MARGIN_A, _MARGIN_B, select
+from .select import MARGIN_A, MARGIN_B, select
 from .types import COMPONENT_FIELDS, CURRENT_LIFECYCLE, TOP_K, Decomposition, Result, Search
 
 
@@ -37,8 +37,8 @@ async def resolve_decomposition(
     normalize: Normalize,
     lifecycle: tuple[str, ...] = CURRENT_LIFECYCLE,
     limit: int = TOP_K,
-    margin_a: float = _MARGIN_A,
-    margin_b: float = _MARGIN_B,
+    margin_a: float = MARGIN_A,
+    margin_b: float = MARGIN_B,
 ) -> Result:
     beliefs = [
         b for branch in branches if (b := branch(decomposition)) is not None

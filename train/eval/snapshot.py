@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import random
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from bifrost.arms import segmenter
@@ -14,9 +15,9 @@ from bifrost.arms.normalize import normalize
 from bifrost.arms.repository import NotSeeded, PostgresAddressSource, SourceSnapshot
 from bifrost.composition import build_resolution
 from bifrost.config import Settings
-from bifrost.core.merge import STREET_BATCH, STREET_STREAM_CAP, _belief_value, _recovery_fetches
+from bifrost.core.merge import belief_value, merge
 from bifrost.core.ports import BeliefBranch
-from bifrost.core.types import CURRENT_LIFECYCLE, AddressRow, Axis, Belief, Capability, Grade
+from bifrost.core.types import CURRENT_LIFECYCLE, AddressRow, Belief, Search
 
 from .calibrate import _score
 from .provenance import manifest
@@ -30,27 +31,54 @@ def _beliefs(query: str, branches: tuple[BeliefBranch, ...]) -> tuple[Belief, ..
     return tuple(belief for branch in branches if (belief := branch(decomposition)) is not None)
 
 
+class _Recording:
+    """AddressSource over the snapshot that keeps every row the engine's own sourcing touched, so
+    the calibration pool is exactly the candidate set merge ranks. one divergence: units stay
+    uncollapsed so a unit target remains visible to is_match."""
+
+    def __init__(self, source: SourceSnapshot) -> None:
+        self._source = source
+        self.rows: dict[str, AddressRow] = {}
+
+    async def street_stream(
+        self,
+        folded_q: str,
+        *,
+        cap: int,
+        batch: int,
+        collapse_units: bool = False,
+        postcodes: set[str] | None = None,
+        lifecycle: tuple[str, ...] = CURRENT_LIFECYCLE,
+    ) -> AsyncGenerator[list[AddressRow]]:
+        stream = self._source.street_stream(
+            folded_q, cap=cap, batch=batch, postcodes=postcodes, lifecycle=lifecycle
+        )
+        async for rows in stream:
+            for row in rows:
+                self.rows.setdefault(row.address_id, row)
+            yield rows
+
+    async def by_postcodes(
+        self,
+        codes: set[str],
+        folded_q: str | None,
+        house_number: str | None,
+        *,
+        cap: int,
+        lifecycle: tuple[str, ...] = CURRENT_LIFECYCLE,
+    ) -> list[AddressRow]:
+        rows = await self._source.by_postcodes(
+            codes, folded_q, house_number, cap=cap, lifecycle=lifecycle
+        )
+        for row in rows:
+            self.rows.setdefault(row.address_id, row)
+        return rows
+
+
 async def _pool(beliefs: tuple[Belief, ...], source: SourceSnapshot) -> list[AddressRow]:
-    by_axis = {belief.axis: belief for belief in beliefs}
-    has_source = any(belief.capability is Capability.SOURCE for belief in beliefs)
-    has_locality = any(belief.grade is Grade.LOCALITY and belief.members for belief in beliefs)
-    if not has_source and not has_locality:
-        return []
-    rows: dict[str, AddressRow] = {}
-    street = by_axis.get(Axis.STREET)
-    folded_query = street.value if street else None
-    if street is not None:
-        async for batch in source.street_stream(
-            street.value, cap=STREET_STREAM_CAP, batch=STREET_BATCH
-        ):
-            for row in batch:
-                rows.setdefault(row.address_id, row)
-    for fetched in await asyncio.gather(
-        *_recovery_fetches(by_axis, source, folded_query, CURRENT_LIFECYCLE)
-    ):
-        for row in fetched:
-            rows.setdefault(row.address_id, row)
-    return list(rows.values())
+    recording = _Recording(source)
+    await merge(Search(beliefs=beliefs), recording)
+    return list(recording.rows.values())
 
 
 def _row(row: AddressRow, beliefs: tuple[Belief, ...], target_id: str | None) -> dict:
@@ -60,7 +88,7 @@ def _row(row: AddressRow, beliefs: tuple[Belief, ...], target_id: str | None) ->
         "axes": {
             belief.axis.value: {
                 "grade": belief.grade.value,
-                "v": _belief_value(belief, row),
+                "v": belief_value(belief, row),
             }
             for belief in beliefs
         },

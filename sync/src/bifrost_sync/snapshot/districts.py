@@ -201,6 +201,7 @@ async def stamp_districts(
     xs: list[float] = []
     ys: list[float] = []
     try:
+        # fork-safe: only the idle deadline thread is alive, no lock held; workers use shapely only
         with ProcessPoolExecutor(
             max_workers=workers, mp_context=multiprocessing.get_context("fork")
         ) as ex:

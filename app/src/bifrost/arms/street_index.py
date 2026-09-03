@@ -61,6 +61,7 @@ class StreetIndex:
         "_lifecycle_code",
         "_is_alias",
         "_entry_pcs",
+        "_pos_by_pc",
         "_trglen",
         "_inv",
         "_pos_of",
@@ -124,6 +125,11 @@ class StreetIndex:
             _tokenize(pos, folded)
         self._inv = {g: np.array(v, dtype=np.int32) for g, v in inv.items()}
         self._lifecycle_code = lifecycle_codes(self._lifecycle)
+        by_pc: dict[str, list[int]] = {}
+        for pos, entry_pcs in enumerate(self._entry_pcs):
+            for pc in entry_pcs:
+                by_pc.setdefault(pc, []).append(pos)
+        self._pos_by_pc = {pc: np.array(v, dtype=np.int32) for pc, v in by_pc.items()}
 
     def _sims(self, qt: set[str]) -> np.ndarray:
         return bincount_sims(self._inv, self._trglen, self._n, qt)
@@ -158,6 +164,14 @@ class StreetIndex:
         if ranked is None:
             return []
         order, sim = ranked
+        if postcodes is not None:
+            # a pin on a common token otherwise walks every candidate in python to emit nothing
+            allowed = [self._pos_by_pc[pc] for pc in postcodes if pc in self._pos_by_pc]
+            if not allowed:
+                return []
+            keep = np.zeros(self._n, dtype=bool)
+            keep[np.concatenate(allowed)] = True
+            order = order[keep[order]]
         out: list[Combo] = []
         for p in order:
             pos = int(p)

@@ -63,6 +63,16 @@ def test_knn_postcode_filter_drops_unconfined_combos():
     assert combos == [Combo(0, "2000", 1.0, "Alpha", "alpha")]  # street 1 (only 1000) excluded
 
 
+def test_knn_unknown_postcode_pin_returns_nothing():
+    assert _idx().knn("alpha", cap=64, postcodes={"9999"}) == []
+
+
+def test_knn_postcode_pin_keeps_order_across_mixed_entries():
+    # 1000 is shared by Alpha and Alphabet; sim order and the expansion survive the pin
+    combos = _idx().knn("alpha", cap=64, postcodes={"1000"})
+    assert [(c.street_id, c.postcode) for c in combos] == [(0, "1000"), (1, "1000")]
+
+
 def test_knn_threshold_prunes_below_floor():
     assert _idx().knn("zzzzzz", cap=64) == []  # no trigram overlap -> sim 0 < THRESHOLD
 

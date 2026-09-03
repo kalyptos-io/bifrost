@@ -36,7 +36,7 @@ To skip the parser, state the parts yourself:
 ```
 
 The address component set is fixed: `street`, `house_number`, `house_letter`, `floor`, `door`,
-`postcode`, `city`, `sub_locality`. Unknown keys are ignored rather than rejected. The area keys
+`postcode`, `city`, `sub_locality`. Any other key is rejected with a 422. The area keys
 `kommune`, `sogn` and `region` are the exception: pinning one of those on its own is not an address
 at all, so the request is answered from the area registers and comes back with `"kind": "kommune"`.
 

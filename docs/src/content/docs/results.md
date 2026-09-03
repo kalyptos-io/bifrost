@@ -129,7 +129,7 @@ property's legal nesting.
 	"ejerlejlighedsnummer": "14",
 	"relations": {
 		"parents": { "refs": [{ "bfe": "6022356", "type": "samlet_fast_ejendom" }], "complete": true },
-		"children": { "refs": [] }
+		"children": { "refs": [], "complete": true }
 	}
 }
 ```

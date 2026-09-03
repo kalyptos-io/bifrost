@@ -14,8 +14,8 @@ from .types import (
 _DISCRETE_HARD = ("house_number", "house_letter", "postcode")
 # soft-gated unit fields: a mismatch denies A (caps at B) but never forces C - recall untouched
 _UNIT_SOFT = ("floor", "door")
-_MARGIN_A = 1.0  # default A gap; composition injects the calibrated artifact value
-_MARGIN_B = 0.3  # default B/C gap; composition injects the calibrated artifact value
+MARGIN_A = 1.0  # default A gap; composition injects the calibrated artifact value
+MARGIN_B = 0.3  # default B/C gap; composition injects the calibrated artifact value
 
 
 def select(
@@ -24,8 +24,8 @@ def select(
     candidates: list[Candidate],
     *,
     limit: int = TOP_K,
-    margin_a: float = _MARGIN_A,
-    margin_b: float = _MARGIN_B,
+    margin_a: float = MARGIN_A,
+    margin_b: float = MARGIN_B,
     norm: Normalize = str.casefold,
 ) -> Result:
     # merge is the sole ranking authority; already ordered + bounded. confidence reads the whole

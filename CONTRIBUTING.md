@@ -18,11 +18,12 @@ uv sync
 
 ## Linting, formatting and tests
 
-CI runs these four commands. Run them before you push:
+CI runs these five commands. Run them before you push:
 
 ```sh
 uv run ruff check .
 uv run ruff format --check .
+uv run ty check
 uv run pytest
 helm lint charts/bifrost --set database.dsn=postgresql://u:p@localhost/db
 ```

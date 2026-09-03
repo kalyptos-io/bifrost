@@ -59,7 +59,7 @@ export interface Geometry {
 
 export interface Meta {
 	score: number;
-	confidence: string;
+	confidence: 'A' | 'B' | 'C';
 	uuid: string | null;
 }
 
@@ -73,9 +73,6 @@ export interface PropertyRef {
 // parent ancestry (nearest -> ground, self excluded) + direct children; only on ejendom-kind matches
 export interface RefContainer {
 	refs: PropertyRef[];
-}
-
-export interface ParentRelations extends RefContainer {
 	complete: boolean;
 }
 
@@ -84,7 +81,7 @@ export interface Ejendom {
 	type: EjendomType;
 	ejerlejlighedsnummer?: string;
 	relations: {
-		parents: ParentRelations;
+		parents: RefContainer;
 		children: RefContainer;
 	};
 }
@@ -97,7 +94,7 @@ export interface Match {
 	geometry: Geometry | null;
 	ejendom?: Ejendom;
 	meta: Meta;
-	lifecycle?: string; // omitted by older API; UI tolerates absence
+	lifecycle: string;
 }
 
 export interface AddressResult {
