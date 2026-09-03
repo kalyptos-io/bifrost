@@ -6,7 +6,6 @@ import argparse
 import json
 import math
 from pathlib import Path
-from typing import Any
 
 from bifrost.core.types import TOP_K
 
@@ -56,25 +55,29 @@ def _agree(grade: str, value: float) -> float:
     return float(value >= threshold) if threshold is not None else value
 
 
-def _accumulate(aggregate, side: str, axes: dict) -> None:
+def _accumulate(
+    aggregate: dict[str, dict[str, list[float]]],
+    grades: dict[str, str],
+    side: str,
+    axes: dict,
+) -> None:
     for axis, grade in axes.items():
         cell = aggregate[axis][side]
         cell[0] += _agree(grade["grade"], grade["v"])
         cell[1] += grade["v"]
         cell[2] += 1
-        aggregate[axis]["grade"] = grade["grade"]
+        grades[axis] = grade["grade"]
 
 
 def _mu(records) -> tuple[dict[str, tuple[float, float]], dict[str, tuple[float, float, float]]]:
-    aggregate: dict[str, dict[str, Any]] = {
-        axis: {"m": [0.0, 0.0, 0], "u": [0.0, 0.0, 0], "grade": ""} for axis in _AXES
-    }
+    aggregate = {axis: {"m": [0.0, 0.0, 0.0], "u": [0.0, 0.0, 0.0]} for axis in _AXES}
+    grades = dict.fromkeys(_AXES, "")  # last grade seen per axis; selects the diagnostics tau
     for record in records:
         for row in record["rows"]:
             if row["is_match"]:
-                _accumulate(aggregate, "m", row["axes"])
+                _accumulate(aggregate, grades, "m", row["axes"])
         for row in record["mu_nonmatch"]:
-            _accumulate(aggregate, "u", row["axes"])
+            _accumulate(aggregate, grades, "u", row["axes"])
     mu, diagnostics = {}, {}
     for axis, data in aggregate.items():
         if data["m"][2] == 0 or data["u"][2] == 0:
@@ -82,11 +85,11 @@ def _mu(records) -> tuple[dict[str, tuple[float, float]], dict[str, tuple[float,
         m = (data["m"][0] + _ALPHA) / (data["m"][2] + 2 * _ALPHA)
         u = (data["u"][0] + _ALPHA) / (data["u"][2] + 2 * _ALPHA)
         mu[axis] = (m, u)
-        if data["grade"] in _AGREE_TAU:
+        if grades[axis] in _AGREE_TAU:
             diagnostics[axis] = (
                 data["m"][1] / data["m"][2],
                 data["u"][1] / data["u"][2],
-                _AGREE_TAU[data["grade"]],
+                _AGREE_TAU[grades[axis]],
             )
     return mu, diagnostics
 
