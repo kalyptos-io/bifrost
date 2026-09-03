@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 from bifrost_sync import cli
 from bifrost_sync.config import Config
-from bifrost_sync.registers import ALL_ENTITIES
+from bifrost_sync.registers import ALL_ENTITIES, contract_hash
 from bifrost_sync.snapshot.records import Floors
 
 
@@ -85,6 +85,7 @@ def _stub_reconcile(monkeypatch, tmp_path: Path, spec, listing: list[dict]):
     monkeypatch.setattr(cli, "cursors", lambda _: {})
     monkeypatch.setattr(cli, "contracts", lambda _: {})
     monkeypatch.setattr(cli, "_empty_staged", empty_staged)
+    monkeypatch.setattr(cli, "staged_rows", lambda _: {})
     monkeypatch.setattr(cli, "_snapshot", snapshot)
     return session, fetched, _stub_baseline_io(monkeypatch, tmp_path)
 
@@ -164,3 +165,22 @@ def test_forced_baseline_shares_listing_between_cursor_and_total_selection(monke
     # lineage selection reads the total too, so the listing is reused twice - never re-listed
     assert total_listings == [listing, listing]
     assert [load.cursor for load in staged] == [6]  # min(9 - 3, total 8)
+
+
+def test_a_zero_row_load_is_not_read_as_a_lost_load(monkeypatch, tmp_path):
+    # upstream has no rows for this entity: the table is legitimately absent, so the committed
+    # cursor stands and the tick skips rather than re-baselining it every run
+    spec = _spec()
+    _, _, staged = _stub_reconcile(monkeypatch, tmp_path, spec, _listing())
+
+    async def empty_staged(_: str) -> set[str]:
+        return {spec.table}
+
+    monkeypatch.setattr(cli, "cursors", lambda _: {spec.table: 9})
+    monkeypatch.setattr(cli, "contracts", lambda _: {spec.table: contract_hash(spec)})
+    monkeypatch.setattr(cli, "_empty_staged", empty_staged)
+    monkeypatch.setattr(cli, "staged_rows", lambda _: {spec.table: 0})
+
+    _run_reconcile(tmp_path)
+
+    assert staged == []

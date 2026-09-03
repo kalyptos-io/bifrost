@@ -17,7 +17,14 @@ from uuid import uuid4
 import asyncpg
 import pytest
 from bifrost_sync.config import Config
-from bifrost_sync.pipeline import Load, contracts, cursors, make_pipeline, run_loads
+from bifrost_sync.pipeline import (
+    Load,
+    contracts,
+    cursors,
+    make_pipeline,
+    run_loads,
+    staged_rows,
+)
 from bifrost_sync.reduce import baseline_rows, reduce_delta_files
 from bifrost_sync.registers import ALL_ENTITIES, EntitySpec, contract_hash
 
@@ -32,9 +39,9 @@ def _spec(table: str) -> EntitySpec:
     return next(s for s in ALL_ENTITIES if s.table == table)
 
 
-def _zip(path: Path, rows: list[dict]) -> Path:
+def _zip(path: Path, rows: list[dict], fields: list[str] | None = None) -> Path:
     buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+    w = csv.DictWriter(buf, fieldnames=fields or list(rows[0].keys()))
     w.writeheader()
     w.writerows(rows)
     with zipfile.ZipFile(path, "w") as z:
@@ -260,3 +267,17 @@ async def test_hist_composite_key_merges_closing_delta_in_place(env: _Env):
     assert len(rows) == 2  # no hard-delete; the close updated in place, Tejnvej untouched
     assert rows[("v1", _iso("2000"), _iso("2000"))]["registreringtil"] == _iso("2015")
     assert rows[("v1", _iso("2015"), _iso("2015"))]["registreringtil"] is None
+
+
+@_needs_db
+async def test_header_only_total_commits_state_and_creates_no_table(env: _Env):
+    # upstream ships a header-only zip for some entities; dlt commits the cursor but makes no table
+    pn = _spec("dar_postnummer")
+    z = _zip(env._cfg.work_dir / "pn.zip", [], ["id_lokalId", "postnr", "navn"])
+    p = env.pipeline()
+    run_loads(p, [Load(pn, baseline_rows([z], pn), 100)], refresh="drop_resources")
+
+    assert cursors(p)["dar_postnummer"] == 100
+    assert staged_rows(p)["dar_postnummer"] == 0
+    regclass = await env.conn.fetchval("SELECT to_regclass($1)", f'{env.dataset}."dar_postnummer"')
+    assert regclass is None
