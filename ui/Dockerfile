@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 ARG VERSION
 ENV VITE_APP_VERSION=$VERSION
 WORKDIR /ui
