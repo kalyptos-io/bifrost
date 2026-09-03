@@ -23,6 +23,7 @@ postgres advisory lock serializes runs. The app unit orders on this data: new ap
 matching generation while the old release keeps serving. Force a tick now with
   kubectl rollout restart deployment/{{ include "bifrost.fullname" . }}-sync
 Needs a privileged sync.database.existingSecret (schema DDL). Egress is not chart-owned: your cluster's
-own NetworkPolicy must allow this pod out to api.datafordeler.dk:443 and postgres.
+own NetworkPolicy must allow this pod out to api.datafordeler.dk:443, auth.datafordeler.dk:443 (oauth
+token) and postgres.
 /resolve has no data until the first generation.
 {{- end }}
